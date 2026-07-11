@@ -32,10 +32,18 @@ const Toast = {
 
 // ── App state ─────────────────────────────────────────────
 let currentNode    = null;   // currently selected nodeData
-let rawHierarchy   = null;   // raw hierarchy data
-let flatNodes      = {};     // index of alias -> nodeData
+let activeSide     = 'A';    // active environment side ('A' or 'B')
+let isMultiEnv     = false;  // true if logged in to two environments
+let rawHierarchyA  = null;   // raw hierarchy for Environment A
+let rawHierarchyB  = null;   // raw hierarchy for Environment B
+let flatNodesA     = {};     // index of alias -> nodeData for side A
+let flatNodesB     = {};     // index of alias -> nodeData for side B
 let compareNodeA   = null;   // left side for compare
 let compareNodeB   = null;   // right side for compare
+
+// Fallbacks for backward compatibility
+let rawHierarchy   = null;
+let flatNodes      = {};
 
 // ── DOM refs ──────────────────────────────────────────────
 const $  = id => document.getElementById(id);
@@ -43,13 +51,39 @@ const qs = sel => document.querySelector(sel);
 
 // ── Init ──────────────────────────────────────────────────
 async function init() {
-  const sess = API.session();
+  const sessA = API.session('A');
+  const sessB = API.session('B');
+  isMultiEnv = sessionStorage.getItem('cc_multiEnv') === 'true';
 
   // Populate topbar
-  $('topbar-server').textContent   = sess.appServer;
-  $('topbar-component').textContent = sess.componentId.toUpperCase();
-  $('topbar-user-label').textContent = sess.username;
-  $('topbar-avatar').textContent   = (sess.username[0] || 'U').toUpperCase();
+  if (isMultiEnv) {
+    $('topbar-server').textContent   = `A: ${sessA.appServer} | B: ${sessB.appServer}`;
+    $('topbar-component').textContent = `${sessA.componentId.toUpperCase()} / ${sessB.componentId.toUpperCase()}`;
+  } else {
+    $('topbar-server').textContent   = sessA.appServer;
+    $('topbar-component').textContent = sessA.componentId.toUpperCase();
+  }
+  $('topbar-user-label').textContent = sessA.username;
+  $('topbar-avatar').textContent   = (sessA.username[0] || 'U').toUpperCase();
+
+  // Show/configure sidebar env tabs if multi-env
+  const envTabsContainer = $('sidebar-env-tabs');
+  if (isMultiEnv) {
+    envTabsContainer.classList.remove('hidden');
+    $('tab-env-A').textContent = `A: ${sessA.appServer.split('.')[0]}`;
+    $('tab-env-B').textContent = `B: ${sessB.appServer.split('.')[0]}`;
+  } else {
+    envTabsContainer.classList.add('hidden');
+  }
+
+  // Populate compare headers
+  if (isMultiEnv) {
+    $('cmp-headerA').innerHTML = `← Lato A (sinistra) <span class="badge badge-server">${sessA.appServer}</span>`;
+    $('cmp-headerB').innerHTML = `→ Lato B (destra) <span class="badge badge-server">${sessB.appServer}</span>`;
+  } else {
+    $('cmp-headerA').innerHTML = `← Lato A (sinistra)`;
+    $('cmp-headerB').innerHTML = `→ Lato B (destra)`;
+  }
 
   // Wire up sidebar controls
   $('search-input').addEventListener('input', e => Tree.setSearch(e.target.value.trim()));
@@ -72,6 +106,27 @@ async function init() {
     window.location.href = 'index.html';
   });
 
+  // Reset session
+  $('btn-reset').addEventListener('click', () => {
+    if (confirm('Sei sicuro di voler resettare la sessione attuale e scollegare gli ambienti?')) {
+      sessionStorage.clear();
+      window.location.href = 'index.html';
+    }
+  });
+
+  // Swap button
+  const swapBtn = $('btn-swap');
+  if (swapBtn) {
+    if (isMultiEnv) {
+      swapBtn.classList.remove('hidden');
+      // Remove any existing click handler and add the new one
+      swapBtn.replaceWith(swapBtn.cloneNode(true));
+      $('btn-swap').addEventListener('click', swapCompareSides);
+    } else {
+      swapBtn.classList.add('hidden');
+    }
+  }
+
   // Refresh hierarchy
   $('btn-refresh').addEventListener('click', loadHierarchy);
 
@@ -92,20 +147,39 @@ async function init() {
 
 // ── Load hierarchy ─────────────────────────────────────────
 async function loadHierarchy() {
-  showLoading('Caricamento gerarchia...');
+  showLoading('Caricamento gerarchie...');
   try {
-    const data = await API.getHierarchy(true);
-    rawHierarchy = data;
-    
-    // Index all nodes
-    flatNodes = {};
-    buildFlatNodesMap(data);
+    // Load side A
+    rawHierarchyA = await API.getHierarchy(true, 'A');
+    flatNodesA = {};
+    buildFlatNodesMap(rawHierarchyA, 'A');
 
-    // Populate compare node selects
+    if (isMultiEnv) {
+      // Load side B
+      try {
+        rawHierarchyB = await API.getHierarchy(true, 'B');
+        flatNodesB = {};
+        buildFlatNodesMap(rawHierarchyB, 'B');
+      } catch (errB) {
+        Toast.error('Errore caricamento Ambiente B: ' + errB.message);
+      }
+    } else {
+      rawHierarchyB = null;
+      flatNodesB = {};
+    }
+
+    // Set fallbacks for backward compatibility
+    rawHierarchy = rawHierarchyA;
+    flatNodes = flatNodesA;
+
+    // Populate compare selects
     populateCompareNodeDropdowns();
 
-    Tree.init(data, onNodeSelect);
-    buildLevelFilterChips(data);
+    // Init tree with active side
+    const activeHierarchy = activeSide === 'A' ? rawHierarchyA : rawHierarchyB;
+    Tree.init(activeHierarchy, onNodeSelect);
+    buildLevelFilterChips(activeHierarchy);
+
     Toast.success('Gerarchia caricata');
   } catch (err) {
     Toast.error('Errore caricamento: ' + err.message);
@@ -113,6 +187,33 @@ async function loadHierarchy() {
   } finally {
     hideLoading();
   }
+}
+
+// ── Switch sidebar active environment side ────────────────
+function switchSidebarSide(side) {
+  if (side === activeSide) return;
+  activeSide = side;
+
+  // Toggle active tab class
+  document.querySelectorAll('.env-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.id === `tab-env-${side}`);
+  });
+
+  // Update Tree data
+  const currentHierarchy = side === 'A' ? rawHierarchyA : rawHierarchyB;
+  
+  // Re-init tree with selected side's hierarchy
+  Tree.init(currentHierarchy, onNodeSelect);
+  
+  // Refresh filter chips
+  buildLevelFilterChips(currentHierarchy);
+
+  // Reset selected node detail panels
+  currentNode = null;
+  $('empty-state').classList.remove('hidden');
+  $('node-panel').classList.add('hidden');
+  clearViewer();
+  Compare.clear();
 }
 
 // ── Build dynamic level chips ─────────────────────────────
@@ -158,7 +259,7 @@ function showNodePanel(nodeData) {
   $('panel-node-name').textContent  = alias;
   $('panel-node-level').textContent = `Livello ${level}`;
 
-  const sess     = API.session();
+  const sess     = API.session(activeSide);
   const targetComp = (sess.componentId || '').toLowerCase();
   const rawList = nodeData.usersList || nodeData.UsersList || [];
   const users    = rawList.filter(u => {
@@ -186,9 +287,14 @@ function showNodePanel(nodeData) {
   clearViewer();
   Compare.clear();
 
-  // Pre-fill compare node A
-  $('cmp-nodeA').value = alias;
-  $('cmp-userA').innerHTML = buildUserOptions(users.filter(u => !u.isVirtualDefault));
+  // Pre-fill compare node for the active side
+  if (activeSide === 'A') {
+    $('cmp-nodeA').value = alias;
+    populateCompareUsers('A', alias);
+  } else {
+    $('cmp-nodeB').value = alias;
+    populateCompareUsers('B', alias);
+  }
 }
 
 // ── Render users table ────────────────────────────────────
@@ -241,14 +347,14 @@ async function viewConfig(userName, nodeAlias) {
   contentEl.classList.remove('hidden');
   contentEl.style.display = 'flex';
 
-  Viewer.show(nodeAlias, userName || '');
+  Viewer.show(nodeAlias, userName || '', activeSide);
 }
 
 // ── Download config ───────────────────────────────────────
 async function downloadConfig(userName, nodeAlias) {
   Toast.info(`Download in corso per ${userName}...`);
   try {
-    await API.downloadConfig(userName, nodeAlias);
+    await API.downloadConfig(userName, nodeAlias, activeSide);
     Toast.success('Download completato!');
   } catch (err) {
     Toast.error('Errore download: ' + err.message);
@@ -260,11 +366,11 @@ function setCompareB(userName, nodeAlias) {
   const targetUser = userName === '' || userName === 'DEFAULT' ? 'DEFAULT' : userName;
 
   $('cmp-nodeB').value = nodeAlias;
-  populateCompareUsers('B', nodeAlias);
+  populateCompareUsers('B', nodeAlias, activeSide);
   $('cmp-userB').value = targetUser;
 
   switchTab('compare');
-  Toast.info(`Lato B impostato: ${userName || 'DEFAULT'} @ ${nodeAlias}`);
+  Toast.info(`Lato B impostato: ${userName || 'DEFAULT'} @ ${nodeAlias} (da Ambiente ${activeSide})`);
 }
 
 // ── Run compare ───────────────────────────────────────────
@@ -347,7 +453,7 @@ async function downloadDefaultConfig() {
   const alias = currentNode.node?.alias;
   Toast.info(`Download DEFAULT per nodo ${alias}...`);
   try {
-    await API.downloadConfig('', alias);
+    await API.downloadConfig('', alias, activeSide);
     Toast.success('Download DEFAULT completato!');
   } catch (err) {
     Toast.error('Errore download DEFAULT: ' + err.message);
@@ -360,7 +466,7 @@ async function downloadFullConfigNode() {
   const alias = currentNode.node?.alias;
   Toast.info(`Download FULL per nodo ${alias}...`);
   try {
-    await API.downloadFullConfig(alias, '');
+    await API.downloadFullConfig(alias, '', activeSide);
     Toast.success('Download FULL completato!');
   } catch (err) {
     Toast.error('Errore download FULL: ' + err.message);
@@ -399,9 +505,9 @@ async function confirmAssignUser() {
   btn.textContent  = '⏳ Assegnazione...';
 
   try {
-    await API.assignUser(username, node);
+    await API.assignUser(username, node, null, activeSide);
     closeAssignUserModal();
-    Toast.success(`Utente ${username} assegnato al nodo ${node}`);
+    Toast.success(`Utente ${username} assegnato al nodo ${node} su Ambiente ${activeSide}`);
     // Reload hierarchy to refresh user list
     await loadHierarchy();
   } catch (err) {
@@ -423,13 +529,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // ── Remove User from Node ──────────────────────────────────
 async function removeUserFromNode(userName, nodeAlias) {
-  if (!confirm(`Sei sicuro di voler rimuovere l'utente ${userName} dal nodo ${nodeAlias}?`)) {
+  if (!confirm(`Sei sicuro di voler rimuovere l'utente ${userName} dal nodo ${nodeAlias} su Ambiente ${activeSide}?`)) {
     return;
   }
 
   showLoading(`Rimozione utente ${userName}...`);
   try {
-    await API.removeUser(userName, nodeAlias);
+    await API.removeUser(userName, nodeAlias, null, activeSide);
     Toast.success(`Utente ${userName} rimosso con successo dal nodo ${nodeAlias}`);
     // Refresh hierarchy to update the list of users
     await loadHierarchy();
@@ -445,23 +551,26 @@ async function removeUserFromNode(userName, nodeAlias) {
 // (already works — empty string passes through to the API)
 
 // ── Build flat nodes list ─────────────────────────────────
-function buildFlatNodesMap(node) {
+function buildFlatNodesMap(node, side = 'A') {
   if (!node) return;
+  const targetMap = side === 'A' ? flatNodesA : flatNodesB;
   if (node.node && node.node.alias) {
-    flatNodes[node.node.alias] = node;
+    targetMap[node.node.alias] = node;
   }
   if (node.children && node.children.length) {
-    node.children.forEach(buildFlatNodesMap);
+    node.children.forEach(c => buildFlatNodesMap(c, side));
   }
 }
 
 // ── Populate compare node dropdowns ───────────────────────
 function populateCompareNodeDropdowns() {
-  const aliases = Object.keys(flatNodes).sort();
-  const options = ['<option value="">— seleziona nodo —</option>', ...aliases.map(a => `<option value="${a}">${a}</option>`)].join('');
+  const aliasesA = Object.keys(flatNodesA).sort();
+  const optionsA = ['<option value="">— seleziona nodo A —</option>', ...aliasesA.map(a => `<option value="${a}">${a}</option>`)].join('');
+  $('cmp-nodeA').innerHTML = optionsA;
 
-  $('cmp-nodeA').innerHTML = options;
-  $('cmp-nodeB').innerHTML = options;
+  const aliasesB = isMultiEnv ? Object.keys(flatNodesB).sort() : aliasesA;
+  const optionsB = ['<option value="">— seleziona nodo B —</option>', ...aliasesB.map(a => `<option value="${a}">${a}</option>`)].join('');
+  $('cmp-nodeB').innerHTML = optionsB;
 
   // Clear user selects
   $('cmp-userA').innerHTML = '<option value="">— seleziona utente —</option>';
@@ -469,20 +578,23 @@ function populateCompareNodeDropdowns() {
 }
 
 // ── Populate compare users dropdown based on selected node ─
-function populateCompareUsers(side, nodeAlias) {
+function populateCompareUsers(side, nodeAlias, envSide = side) {
   const selectNode = $(`cmp-node${side}`);
   const selectUser = $(`cmp-user${side}`);
 
   if (!selectNode || !selectUser) return;
   selectNode.value = nodeAlias; // sync in case of setCompareB call
 
-  if (!nodeAlias || !flatNodes[nodeAlias]) {
+  // If we are in single env mode, both sides use flatNodesA
+  const targetMap = (isMultiEnv && envSide === 'B') ? flatNodesB : flatNodesA;
+
+  if (!nodeAlias || !targetMap[nodeAlias]) {
     selectUser.innerHTML = '<option value="">— seleziona utente —</option>';
     return;
   }
 
-  const nodeData = flatNodes[nodeAlias];
-  const sess = API.session();
+  const nodeData = targetMap[nodeAlias];
+  const sess = API.session(envSide);
   const targetComp = (sess.componentId || '').toLowerCase();
   const rawList = nodeData.usersList || nodeData.UsersList || [];
 
@@ -511,6 +623,91 @@ function populateCompareUsers(side, nodeAlias) {
   selectUser.innerHTML = ['<option value="">— seleziona utente —</option>', optionsHTML].join('');
 }
 
+// ── Swap environments and Compare side configurations ─────
+async function swapCompareSides() {
+  if (!isMultiEnv) {
+    Toast.error('La funzionalità di inversione richiede due ambienti connessi.');
+    return;
+  }
+
+  // 1. Swap sessionStorage keys
+  const keys = ['token', 'appServer', 'componentId', 'username'];
+  keys.forEach(k => {
+    const valA = sessionStorage.getItem(`cc_${k}_A`);
+    const valB = sessionStorage.getItem(`cc_${k}_B`);
+    sessionStorage.setItem(`cc_${k}_A`, valB || '');
+    sessionStorage.setItem(`cc_${k}_B`, valA || '');
+  });
+
+  // Keep cc_token, cc_appServer etc synced to the new Environment A
+  keys.forEach(k => {
+    sessionStorage.setItem(`cc_${k}`, sessionStorage.getItem(`cc_${k}_A`));
+  });
+
+  // 2. Swap in-memory hierarchies and maps
+  const tempHierarchy = rawHierarchyA;
+  rawHierarchyA = rawHierarchyB;
+  rawHierarchyB = tempHierarchy;
+
+  const tempFlatNodes = flatNodesA;
+  flatNodesA = flatNodesB;
+  flatNodesB = tempFlatNodes;
+
+  // Fallback refs
+  rawHierarchy = rawHierarchyA;
+  flatNodes = flatNodesA;
+
+  // 3. Swap the selected values in the Compare inputs
+  const nodeA = $('cmp-nodeA').value;
+  const userA = $('cmp-userA').value;
+  const nodeB = $('cmp-nodeB').value;
+  const userB = $('cmp-userB').value;
+
+  // 4. Update UI labels (topbar, tabs, headers)
+  const sessA = API.session('A');
+  const sessB = API.session('B');
+
+  $('topbar-server').textContent   = `A: ${sessA.appServer} | B: ${sessB.appServer}`;
+  $('topbar-component').textContent = `${sessA.componentId.toUpperCase()} / ${sessB.componentId.toUpperCase()}`;
+  $('tab-env-A').textContent = `A: ${sessA.appServer.split('.')[0]}`;
+  $('tab-env-B').textContent = `B: ${sessB.appServer.split('.')[0]}`;
+
+  $('cmp-headerA').innerHTML = `← Lato A (sinistra) <span class="badge badge-server">${sessA.appServer}</span>`;
+  $('cmp-headerB').innerHTML = `→ Lato B (destra) <span class="badge badge-server">${sessB.appServer}</span>`;
+
+  // 5. Re-init compare dropdown values
+  populateCompareNodeDropdowns();
+  
+  // Set the swapped nodes
+  $('cmp-nodeA').value = nodeB;
+  $('cmp-nodeB').value = nodeA;
+
+  // Populate users lists for the new nodes
+  populateCompareUsers('A', nodeB);
+  populateCompareUsers('B', nodeA);
+
+  // Set the swapped users
+  $('cmp-userA').value = userB;
+  $('cmp-userB').value = userA;
+
+  // 6. Refresh the sidebar tree for the current active side
+  const activeHierarchy = activeSide === 'A' ? rawHierarchyA : rawHierarchyB;
+  Tree.init(activeHierarchy, onNodeSelect);
+  buildLevelFilterChips(activeHierarchy);
+
+  // Keep the active tab view, but clear the tree selection highlight
+  document.querySelectorAll('.tree-row.selected').forEach(el => el.classList.remove('selected'));
+  currentNode = null;
+  clearViewer();
+
+  Toast.success('Ambienti invertiti con successo');
+
+  // 7. Auto-run comparison if both nodes were selected
+  if (nodeB && nodeA && userB && userA) {
+    runCompare();
+  }
+}
+
 // ── Start ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);
 
@@ -527,6 +724,8 @@ window.removeUserFromNode    = removeUserFromNode;
 window.populateCompareUsers  = populateCompareUsers;
 window.switchTab             = switchTab;
 window.runCompare            = runCompare;
+window.switchSidebarSide     = switchSidebarSide;
+window.swapCompareSides      = swapCompareSides;
 
 
 

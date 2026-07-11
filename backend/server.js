@@ -246,24 +246,44 @@ app.get('/api/config/preview', async (req, res) => {
 });
 
 // ─── GET /api/config/compare ──────────────────────────────────────────────────
-// Query: componentId, userNameA, userContextA, userNameB, userContextB
+// Query: userNameA, userContextA, userNameB, userContextB, componentId?
 app.get('/api/config/compare', async (req, res) => {
-    const appServer = req.headers['x-app-server'];
-    const { componentId, userNameA, userContextA, userNameB, userContextB } = req.query;
+    // Dynamic params for Left (A) and Right (B) sides
+    const appServerA = req.headers['x-app-server-a'] || req.headers['x-app-server'];
+    const appServerB = req.headers['x-app-server-b'] || req.headers['x-app-server'];
+    const tokenA     = req.headers['x-token-a'] || (req.headers['authorization'] || '').replace('Bearer ', '');
+    const tokenB     = req.headers['x-token-b'] || (req.headers['authorization'] || '').replace('Bearer ', '');
+    const compIdA    = req.headers['x-component-id-a'] || req.query.componentId;
+    const compIdB    = req.headers['x-component-id-b'] || req.query.componentId;
 
-    if (!appServer || !componentId || userNameA === undefined || userNameA === null || !userContextA || userNameB === undefined || userNameB === null || !userContextB) {
+    const { userNameA, userContextA, userNameB, userContextB } = req.query;
+
+    if (!appServerA || !appServerB || !compIdA || !compIdB ||
+        userNameA === undefined || userNameA === null || !userContextA ||
+        userNameB === undefined || userNameB === null || !userContextB) {
         return res.status(400).json({ error: 'Missing required params for compare' });
     }
 
-    async function fetchFiles(userName, userContext) {
+    async function fetchFiles(appServer, token, componentId, userName, userContext) {
         const url = `https://${appServer}/CompanyChart/api/v1/ConfigurationManagement/downloadConfigurationNode`
             + `?componentId=${encodeURIComponent(componentId)}`
             + `&userName=${encodeURIComponent(userName)}`
             + `&userContext=${encodeURIComponent(userContext)}`;
 
+        const headers = {
+            'accept':                    'application/json',
+            'accept-encoding':           'gzip, deflate, br',
+            'accept-language':           'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+            'authorization':             `Bearer ${token}`,
+            'x-auth-context':            'Default',
+            'x-auth-lang':               'en-US',
+            'x-presentation-options':    'data.style=minimal',
+            'accept':                    'application/octet-stream'
+        };
+
         const response = await axios.get(url, {
-            headers:      { ...ccHeaders(req), accept: 'application/octet-stream' },
-            responseType: 'arraybuffer',
+            headers,
+            responseType:  'arraybuffer',
             httpsAgent,
         });
         const zip   = new AdmZip(Buffer.from(response.data));
@@ -278,8 +298,8 @@ app.get('/api/config/compare', async (req, res) => {
 
     try {
         const [filesA, filesB] = await Promise.all([
-            fetchFiles(userNameA, userContextA),
-            fetchFiles(userNameB, userContextB),
+            fetchFiles(appServerA, tokenA, compIdA, userNameA, userContextA),
+            fetchFiles(appServerB, tokenB, compIdB, userNameB, userContextB),
         ]);
 
         const allKeys = new Set([...Object.keys(filesA), ...Object.keys(filesB)]);
@@ -295,12 +315,13 @@ app.get('/api/config/compare', async (req, res) => {
             comparison.push({ file: key, status, contentA, contentB });
         });
 
-        console.log(`[config/compare] Compare nodes: Left=${userNameA || 'DEFAULT'}@${userContextA} (${Object.keys(filesA).length} files) vs Right=${userNameB || 'DEFAULT'}@${userContextB} (${Object.keys(filesB).length} files). Total union keys: ${allKeys.size}`);
+        console.log(`[config/compare] Cross-env compare: Left=${userNameA || 'DEFAULT'}@${userContextA} on ${appServerA} vs Right=${userNameB || 'DEFAULT'}@${userContextB} on ${appServerB}. Total files: ${allKeys.size}`);
 
         res.json({
-            left:  { user: userNameA, node: userContextA },
-            right: { user: userNameB, node: userContextB },
-            componentId,
+            left:  { user: userNameA, node: userContextA, appServer: appServerA },
+            right: { user: userNameB, node: userContextB, appServer: appServerB },
+            componentIdA: compIdA,
+            componentIdB: compIdB,
             files: comparison,
         });
     } catch (err) {

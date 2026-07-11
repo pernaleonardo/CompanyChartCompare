@@ -903,3 +903,49 @@ tbody td .username { font-family: 'JetBrains Mono', monospace; font-size: 12px; 
   .compare-vs { padding-top: 0; }
   .diff-content { grid-template-columns: 1fr; }
 }
+
+/* ── Environment Tabs ───────────────────────────────────── */
+.sidebar-env-tabs {
+  display: flex;
+  background: rgba(13, 21, 38, 0.4);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sidebar-env-tabs.hidden {
+  display: none !important;
+}
+.env-tab {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 12px;
+  outline: none;
+  transition: all var(--dur) var(--ease);
+  border-bottom: 2px solid transparent;
+  text-align: center;
+}
+.env-tab:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.02);
+}
+.env-tab.active {
+  color: var(--accent-bright);
+  border-bottom-color: var(--accent);
+  background: rgba(61, 127, 255, 0.05);
+}
+
+.badge-server {
+  background: rgba(61, 127, 255, 0.12);
+  color: var(--accent-bright);
+  border: 1px solid rgba(61, 127, 255, 0.25);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: 6px;
+  display: inline-block;
+}

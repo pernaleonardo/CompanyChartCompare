@@ -74,6 +74,59 @@
 
       </div>
 
+      <!-- Enable Environment B Checkbox -->
+      <div class="checkbox-field" style="margin: 16px 0; display: flex; align-items: center; gap: 8px;">
+        <input type="checkbox" id="enable-env-B" style="width: 16px; height: 16px; cursor: pointer;" />
+        <label for="enable-env-B" style="cursor: pointer; font-weight: 500; font-size: 13px; color: var(--text-secondary);">Connetti secondo ambiente (per confronto multi-ambiente)</label>
+      </div>
+
+      <!-- Environment B Fields (hidden by default) -->
+      <div id="env-B-fields" class="hidden" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);">
+        <p class="login-subtitle" style="margin-bottom: 12px; font-weight: 600; color: var(--accent-bright);">Parametri Ambiente B (Destinazione)</p>
+        <div class="field-group">
+          <!-- App Server B -->
+          <div class="field">
+            <label for="appServerB">App Server B</label>
+            <input
+              id="appServerB"
+              type="text"
+              placeholder="es. ssc-prod.kering.com"
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- Component ID B -->
+          <div class="field">
+            <label for="componentIdB">Component ID B</label>
+            <input
+              id="componentIdB"
+              type="text"
+              placeholder="es. brk"
+              value="brk"
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- Service Username B -->
+          <div class="field">
+            <label for="serviceUsernameB">Service Username B</label>
+            <input
+              id="serviceUsernameB"
+              type="text"
+              placeholder="es. SSC.DEFAULT@SERVICE"
+              value="SSC.DEFAULT@SERVICE"
+              autocomplete="off"
+            />
+          </div>
+          
+          <!-- Component Password B -->
+          <div class="field">
+            <label for="componentPasswordB">Component Password B</label>
+            <input id="componentPasswordB" type="password" value="acm" placeholder="acm" />
+          </div>
+        </div>
+      </div>
+
       <!-- Advanced section -->
       <div class="advanced-toggle" id="advanced-toggle" role="button" tabindex="0" aria-expanded="false">
         <span class="chevron">▶</span>
@@ -128,6 +181,17 @@ toggle.addEventListener('click', () => {
 });
 toggle.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle.click(); } });
 
+// Toggle Environment B fields visibility
+const enableEnvBCheckbox = document.getElementById('enable-env-B');
+const envBFields = document.getElementById('env-B-fields');
+enableEnvBCheckbox.addEventListener('change', () => {
+  if (enableEnvBCheckbox.checked) {
+    envBFields.classList.remove('hidden');
+  } else {
+    envBFields.classList.add('hidden');
+  }
+});
+
 // ── Alert helper ──────────────────────────────────────────
 function showAlert(msg, type = 'error') {
   const el = document.getElementById('login-alert');
@@ -148,8 +212,19 @@ document.getElementById('login-form').addEventListener('submit', async e => {
   const componentPassword = document.getElementById('componentPassword').value.trim();
   const acmDllPath        = document.getElementById('acmDllPath').value.trim();
 
-  if (!appServer)  return showAlert('App Server è obbligatorio.');
-  if (!componentId)return showAlert('Component ID è obbligatorio.');
+  const enableEnvB        = document.getElementById('enable-env-B').checked;
+  const appServerB         = document.getElementById('appServerB').value.trim();
+  const componentIdB       = document.getElementById('componentIdB').value.trim();
+  const serviceUsernameB   = document.getElementById('serviceUsernameB').value.trim();
+  const componentPasswordB = document.getElementById('componentPasswordB').value.trim();
+
+  if (!appServer)  return showAlert('App Server (Ambiente A) è obbligatorio.');
+  if (!componentId)return showAlert('Component ID (Ambiente A) è obbligatorio.');
+
+  if (enableEnvB) {
+    if (!appServerB)  return showAlert('App Server B (Ambiente B) è obbligatorio.');
+    if (!componentIdB)return showAlert('Component ID B (Ambiente B) è obbligatorio.');
+  }
 
   const btn        = document.getElementById('btn-login');
   const btnText    = document.getElementById('btn-login-text');
@@ -159,27 +234,72 @@ document.getElementById('login-form').addEventListener('submit', async e => {
   btnSpinner.classList.remove('hidden');
 
   try {
-    const resp = await fetch('/api/login', {
+    // 1. Authenticate Environment A
+    const respA = await fetch('/api/login', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ appServer, componentId, serviceUsername, componentPassword, acmDllPath }),
     });
 
-    const data = await resp.json();
+    const dataA = await respA.json();
 
-    if (resp.ok && data.success) {
-      // Persist session info
-      sessionStorage.setItem('cc_token',       data.token);
-      sessionStorage.setItem('cc_appServer',   data.appServer);
-      sessionStorage.setItem('cc_componentId', data.componentId);
-      sessionStorage.setItem('cc_username',    serviceUsername);
-      // Redirect to main app
-      window.location.href = 'app.html';
-    } else {
-      showAlert(data.error || 'Autenticazione fallita. Verifica i parametri.');
+    if (!respA.ok || !dataA.success) {
+      throw new Error('Ambiente A: ' + (dataA.error || 'Autenticazione fallita.'));
     }
+
+    let dataB = null;
+    if (enableEnvB) {
+      // 2. Authenticate Environment B
+      const respB = await fetch('/api/login', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          appServer: appServerB,
+          componentId: componentIdB,
+          serviceUsername: serviceUsernameB,
+          componentPassword: componentPasswordB,
+          acmDllPath
+        }),
+      });
+
+      dataB = await respB.json();
+
+      if (!respB.ok || !dataB.success) {
+        throw new Error('Ambiente B: ' + (dataB.error || 'Autenticazione fallita.'));
+      }
+    }
+
+    // Persist all session info in sessionStorage
+    sessionStorage.clear();
+
+    // Store Environment A
+    sessionStorage.setItem('cc_token_A',       dataA.token);
+    sessionStorage.setItem('cc_appServer_A',   dataA.appServer);
+    sessionStorage.setItem('cc_componentId_A', dataA.componentId);
+    sessionStorage.setItem('cc_username_A',    serviceUsername);
+
+    // Fallbacks
+    sessionStorage.setItem('cc_token',       dataA.token);
+    sessionStorage.setItem('cc_appServer',   dataA.appServer);
+    sessionStorage.setItem('cc_componentId', dataA.componentId);
+    sessionStorage.setItem('cc_username',    serviceUsername);
+
+    if (enableEnvB && dataB) {
+      // Store Environment B
+      sessionStorage.setItem('cc_token_B',       dataB.token);
+      sessionStorage.setItem('cc_appServer_B',   dataB.appServer);
+      sessionStorage.setItem('cc_componentId_B', dataB.componentId);
+      sessionStorage.setItem('cc_username_B',    serviceUsernameB);
+      sessionStorage.setItem('cc_multiEnv',      'true');
+    } else {
+      sessionStorage.setItem('cc_multiEnv',      'false');
+    }
+
+    // Redirect to main app
+    window.location.href = 'app.html';
+
   } catch (err) {
-    showAlert('Impossibile connettersi al backend. Assicurati che Node.js sia in esecuzione.');
+    showAlert(err.message || 'Errore di connessione. Verifica i parametri.');
   } finally {
     btn.disabled = false;
     btnText.classList.remove('hidden');
@@ -188,7 +308,7 @@ document.getElementById('login-form').addEventListener('submit', async e => {
 });
 
 // ── Auto-redirect if already logged in ───────────────────
-if (sessionStorage.getItem('cc_token')) {
+if (sessionStorage.getItem('cc_token') || sessionStorage.getItem('cc_token_A')) {
   window.location.href = 'app.html';
 }
 </script>

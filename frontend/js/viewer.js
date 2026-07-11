@@ -7,6 +7,7 @@ const Viewer = (() => {
   // ── State ──────────────────────────────────────────────
   let _node       = '';
   let _user       = '';
+  let _side       = 'A';  // environment side ('A' or 'B')
   let _allFiles   = [];  // flat list of entries from getConfigurationNodes
   let _expanded   = new Set(); // set of open folder paths (to preserve open/close state on filter)
   let _currentFilter = '';
@@ -59,7 +60,7 @@ const Viewer = (() => {
     container.innerHTML = '<div style="padding:20px;text-align:center"><div class="spinner" style="margin:auto"></div><p class="loading-text" style="margin-top:10px">Caricamento file...</p></div>';
 
     try {
-      const nodes = await API.getConfigurationNodes(_node, '', _user);
+      const nodes = await API.getConfigurationNodes(_node, '', _user, _side);
       
       let entries = [];
       if (Array.isArray(nodes)) {
@@ -248,7 +249,7 @@ const Viewer = (() => {
     contentEl.innerHTML = '<div class="spinner" style="margin:16px auto;display:block"></div>';
 
     try {
-      const data = await API.downloadSingleFile(_node, subPath, configurationId, _user);
+      const data = await API.downloadSingleFile(_node, subPath, configurationId, _user, _side);
       contentEl.innerHTML = highlight(data.content);
     } catch (err) {
       contentEl.innerHTML = `<div class="alert alert-error">Errore apertura file: ${escapeHtml(err.message)}</div>`;
@@ -258,24 +259,17 @@ const Viewer = (() => {
   // ── Download file directly ────────────────────────────────
   async function downloadFileDirectly(configurationId, subPath) {
     try {
-      const { componentId } = API.session();
-      const url = `/api/config/file?componentId=${encodeURIComponent(componentId)}&userContext=${encodeURIComponent(_node)}&subPath=${encodeURIComponent(subPath)}&configurationId=${encodeURIComponent(configurationId)}&userName=${encodeURIComponent(_user)}`;
-      const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${sessionStorage.getItem('cc_token')}`, 'x-app-server': sessionStorage.getItem('cc_appServer') } });
-      const blob = await resp.blob();
-      const link = document.createElement('a');
-      link.href     = URL.createObjectURL(blob);
-      link.download = configurationId;
-      link.click();
-      URL.revokeObjectURL(link.href);
+      await API.downloadFileDirectly(_node, subPath, configurationId, _user, _side);
     } catch (err) {
       console.error('Download error:', err);
     }
   }
 
   // ── Public: Initialize ───────────────────────────────────
-  function show(nodeAlias, userName = '') {
+  function show(nodeAlias, userName = '', side = 'A') {
     _node     = nodeAlias;
     _user     = userName;
+    _side     = side;
     _allFiles = [];
     _expanded = new Set(['Presentation']); // reset expanded directories
 

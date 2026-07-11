@@ -30,6 +30,7 @@
     <div class="topbar-actions">
       <button id="btn-refresh" class="btn btn-ghost btn-sm" title="Ricarica gerarchia">⟳ Aggiorna</button>
       <button id="btn-global-search" class="btn btn-primary btn-sm" style="box-shadow:none" title="Cerca file e widget in tutta la gerarchia">🔍 Cerca Widget</button>
+      <button id="btn-reset" class="btn btn-danger btn-sm" title="Resetta la sessione e torna alla pagina di login">🔄 Reset</button>
 
       <div class="topbar-user" aria-label="Utente connesso">
         <div class="avatar" id="topbar-avatar" aria-hidden="true">U</div>
@@ -57,6 +58,12 @@
             aria-label="Cerca nodo"
           />
         </div>
+      </div>
+
+      <!-- Environment Selection Tabs (hidden by default) -->
+      <div id="sidebar-env-tabs" class="sidebar-env-tabs hidden">
+        <button class="env-tab active" id="tab-env-A" onclick="switchSidebarSide('A')">Ambiente A</button>
+        <button class="env-tab" id="tab-env-B" onclick="switchSidebarSide('B')">Ambiente B</button>
       </div>
 
       <div class="sidebar-filters">
@@ -190,7 +197,7 @@
 
             <!-- Left (A) -->
             <div class="compare-panel-card">
-              <h4>← Lato A (sinistra)</h4>
+              <h4 id="cmp-headerA">← Lato A (sinistra)</h4>
               <div class="compare-select">
                 <label for="cmp-nodeA" style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Nodo</label>
                 <select id="cmp-nodeA">
@@ -203,11 +210,16 @@
               </div>
             </div>
 
-            <div class="compare-vs" aria-hidden="true">VS</div>
+            <div class="compare-vs-container" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding-top: 24px;">
+              <div class="compare-vs" aria-hidden="true" style="padding-top: 0; line-height: 1; margin-bottom: 4px;">VS</div>
+              <button id="btn-swap" class="btn btn-ghost btn-sm" title="Inverti sinistra e destra" style="border-radius: 20px; padding: 4px 10px; font-size: 11px;">
+                ⇄ Inverti
+              </button>
+            </div>
 
             <!-- Right (B) -->
             <div class="compare-panel-card">
-              <h4>→ Lato B (destra)</h4>
+              <h4 id="cmp-headerB">→ Lato B (destra)</h4>
               <div class="compare-select">
                 <label for="cmp-nodeB" style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Nodo</label>
                 <select id="cmp-nodeB">

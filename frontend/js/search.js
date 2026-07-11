@@ -56,7 +56,7 @@ const WidgetSearch = (() => {
     `;
 
     try {
-      const data = await API.searchWidgets(query);
+      const data = await API.searchWidgets(query, activeSide);
       renderResults(data.results, query);
     } catch (err) {
       container.innerHTML = `
@@ -163,7 +163,7 @@ window.viewFileFromSearch = function(nodeAlias, subPath, filename) {
     setTimeout(async () => {
       switchTab('viewer');
       // Set state and fetch in Viewer
-      Viewer.show(nodeAlias, ''); // DEFAULT user
+      Viewer.show(nodeAlias, '', activeSide); // DEFAULT user
       
       // Wait for file browser to load, then select & open file
       setTimeout(() => {

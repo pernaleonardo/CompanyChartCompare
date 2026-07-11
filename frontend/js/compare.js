@@ -140,14 +140,14 @@ const Compare = (() => {
           </div>
           <div class="diff-content" id="diff-content-${idx}">
             <div class="diff-side">
-              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)">
-                ← ${escapeHtml(left.user || 'DEFAULT')} @ ${escapeHtml(left.node)}
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;">
+                ← ${escapeHtml(left.user || 'DEFAULT')} @ ${escapeHtml(left.node)} ${left.appServer ? `<span class="badge badge-server">${escapeHtml(left.appServer)}</span>` : ''}
               </div>
               ${f.contentA ? sideA : '<span style="color:var(--text-muted);font-style:italic">File non presente</span>'}
             </div>
             <div class="diff-side">
-              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)">
-                → ${escapeHtml(right.user || 'DEFAULT')} @ ${escapeHtml(right.node)}
+              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;">
+                → ${escapeHtml(right.user || 'DEFAULT')} @ ${escapeHtml(right.node)} ${right.appServer ? `<span class="badge badge-server">${escapeHtml(right.appServer)}</span>` : ''}
               </div>
               ${f.contentB ? sideB : '<span style="color:var(--text-muted);font-style:italic">File non presente</span>'}
             </div>
