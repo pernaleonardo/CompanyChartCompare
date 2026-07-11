@@ -659,9 +659,66 @@ const Compare = (() => {
     }
   }
 
+  function scrollToNextDifference() {
+    const diffFiles = Array.from(document.querySelectorAll('.diff-file:not(.equal)'));
+    if (diffFiles.length === 0) {
+      Toast.info('Nessuna differenza trovata.');
+      return;
+    }
+
+    const scrollContainer = document.querySelector('.panel-body');
+    if (!scrollContainer) return;
+
+    let targetEl = null;
+    const containerRect = scrollContainer.getBoundingClientRect();
+
+    for (let i = 0; i < diffFiles.length; i++) {
+      const rect = diffFiles[i].getBoundingClientRect();
+      if (rect.top > containerRect.top + 15) {
+        targetEl = diffFiles[i];
+        break;
+      }
+    }
+
+    if (!targetEl) {
+      targetEl = diffFiles[0];
+    }
+
+    if (targetEl) {
+      const targetScrollTop = targetEl.getBoundingClientRect().top - containerRect.top + scrollContainer.scrollTop - 10;
+      scrollContainer.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth'
+      });
+
+      const header = targetEl.querySelector('.diff-file-header');
+      if (header) {
+        const originalBg = header.style.backgroundColor;
+        const originalTransition = header.style.transition;
+        header.style.transition = 'background-color 0.15s ease-in-out';
+        header.style.backgroundColor = 'rgba(61, 127, 255, 0.25)';
+        
+        setTimeout(() => {
+          header.style.backgroundColor = originalBg;
+          setTimeout(() => {
+            header.style.transition = originalTransition;
+          }, 300);
+        }, 600);
+      }
+    }
+  }
+
+  function initNextDiffButton() {
+    const btn = document.getElementById('btn-next-diff');
+    if (btn) {
+      btn.addEventListener('click', scrollToNextDifference);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initExclusionsModal();
     initContextMenu();
+    initNextDiffButton();
   });
 
   return { render, clear, removeExclusionRule };
