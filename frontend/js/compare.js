@@ -45,6 +45,7 @@ const Compare = (() => {
   }
 
   let _lastData = null;
+  let _currentGrouping = 'none'; // 'none', 'folder', 'node'
 
   // ── Render compare results into #compare-results ─────────
   function render(data) {
@@ -52,6 +53,7 @@ const Compare = (() => {
     const container = document.getElementById('compare-results');
     const filterContainer = document.getElementById('compare-filter-container');
     const filterInput = document.getElementById('compare-filter-input');
+    const groupSelect = document.getElementById('compare-group-select');
     
     if (!container) return;
 
@@ -69,15 +71,26 @@ const Compare = (() => {
       return;
     }
 
-    // Reset and show filter input
-    if (filterContainer && filterInput) {
-      filterInput.value = '';
+    // Reset and show filter + grouping controls
+    if (filterContainer) {
+      if (filterInput) filterInput.value = '';
+      if (groupSelect) {
+        groupSelect.value = _currentGrouping;
+        if (!groupSelect.dataset.bound) {
+          groupSelect.addEventListener('change', e => {
+            _currentGrouping = e.target.value;
+            applyFilterAndGroup(filterInput ? filterInput.value : '');
+          });
+          groupSelect.dataset.bound = 'true';
+        }
+      }
+      
       filterContainer.classList.remove('hidden');
       
       // Bind input listener if not already bound
-      if (!filterInput.dataset.bound) {
+      if (filterInput && !filterInput.dataset.bound) {
         filterInput.addEventListener('input', () => {
-          applyFilter(filterInput.value);
+          applyFilterAndGroup(filterInput.value);
         });
         filterInput.dataset.bound = 'true';
       }
@@ -86,7 +99,7 @@ const Compare = (() => {
     renderList(files);
   }
 
-  function applyFilter(query) {
+  function applyFilterAndGroup(query) {
     if (!_lastData || !_lastData.files) return;
     const q = query.toLowerCase().trim();
     
@@ -114,7 +127,6 @@ const Compare = (() => {
         ${counts.added    ? `<div class="diff-stat added">+ ${counts.added} aggiunti</div>` : ''}
         ${counts.removed  ? `<div class="diff-stat removed">− ${counts.removed} rimossi</div>` : ''}
       </div>
-      <div class="diff-file-list">
     `;
 
     if (filesList.length === 0) {
@@ -123,40 +135,102 @@ const Compare = (() => {
           <h3>Nessun file corrispondente al filtro</h3>
         </div>
       `;
+      container.innerHTML = html;
+      return;
     }
 
-    filesList.forEach((f, idx) => {
-      const { linesA, linesB } = diffLines(f.contentA, f.contentB);
-      const sideA = renderSide(linesA, linesB, true);
-      const sideB = renderSide(linesB, linesA, false);
+    // Helper functions for parsing folder and node names
+    function getFolder(filePath) {
+      const parts = filePath.replace(/\\/g, '/').split('/');
+      if (parts.length <= 1) return 'Root';
+      parts.pop(); // Remove filename
+      return parts.join('/');
+    }
 
-      // Collapsed by default (no 'open' class is added initially)
-      html += `
-        <div class="diff-file" id="diff-file-${idx}">
-          <div class="diff-file-header" data-idx="${idx}">
-            <span class="diff-file-name">📄 ${escapeHtml(f.file)}</span>
-            <span class="diff-status ${f.status}">${statusLabel(f.status)}</span>
-            <span class="diff-arrow" style="color:var(--text-muted);font-size:11px;margin-left:auto;width:12px;text-align:center">▼</span>
-          </div>
-          <div class="diff-content" id="diff-content-${idx}">
-            <div class="diff-side">
-              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;">
-                ← ${escapeHtml(left.user || 'DEFAULT')} @ ${escapeHtml(left.node)} ${left.appServer ? `<span class="badge badge-server">${escapeHtml(left.appServer)}</span>` : ''}
-              </div>
-              ${f.contentA ? sideA : '<span style="color:var(--text-muted);font-style:italic">File non presente</span>'}
-            </div>
-            <div class="diff-side">
-              <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;">
-                → ${escapeHtml(right.user || 'DEFAULT')} @ ${escapeHtml(right.node)} ${right.appServer ? `<span class="badge badge-server">${escapeHtml(right.appServer)}</span>` : ''}
-              </div>
-              ${f.contentB ? sideB : '<span style="color:var(--text-muted);font-style:italic">File non presente</span>'}
-            </div>
-          </div>
-        </div>
-      `;
+    // Node is usually the first folder segment
+    function getNode(filePath) {
+      const parts = filePath.replace(/\\/g, '/').split('/');
+      if (parts.length <= 1) return 'Root (Base)';
+      return parts[0];
+    }
+
+    // Grouping
+    let groups = {};
+    if (_currentGrouping === 'folder') {
+      filesList.forEach(f => {
+        const key = getFolder(f.file);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(f);
+      });
+    } else if (_currentGrouping === 'node') {
+      filesList.forEach(f => {
+        const key = getNode(f.file);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(f);
+      });
+    } else {
+      groups['all'] = filesList;
+    }
+
+    // Sort group keys
+    const sortedGroupKeys = Object.keys(groups).sort((a, b) => {
+      if (a === 'Root' || a === 'Root (Base)') return -1;
+      if (b === 'Root' || b === 'Root (Base)') return 1;
+      return a.localeCompare(b);
     });
 
-    html += '</div>';
+    let fileIdx = 0;
+
+    sortedGroupKeys.forEach(groupKey => {
+      const groupFiles = groups[groupKey];
+
+      if (_currentGrouping !== 'none') {
+        const icon = _currentGrouping === 'folder' ? '📁' : '🏢';
+        html += `
+          <div class="diff-group-header" style="margin-top:20px;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid var(--border);display:flex;align-items:center;gap:8px;">
+            <span style="font-size:15px">${icon}</span>
+            <span style="font-weight:700;font-size:12px;color:var(--text-accent);text-transform:uppercase;letter-spacing:.5px">${escapeHtml(groupKey)}</span>
+            <span style="font-size:11px;color:var(--text-muted);margin-left:4px;font-weight:normal">(${groupFiles.length} file)</span>
+          </div>
+        `;
+      }
+
+      html += `<div class="diff-file-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">`;
+
+      groupFiles.forEach(f => {
+        const { linesA, linesB } = diffLines(f.contentA, f.contentB);
+        const sideA = renderSide(linesA, linesB, true);
+        const sideB = renderSide(linesB, linesA, false);
+        const currentIdx = fileIdx++;
+
+        html += `
+          <div class="diff-file" id="diff-file-${currentIdx}">
+            <div class="diff-file-header" data-idx="${currentIdx}">
+              <span class="diff-file-name">📄 ${escapeHtml(f.file)}</span>
+              <span class="diff-status ${f.status}">${statusLabel(f.status)}</span>
+              <span class="diff-arrow" style="color:var(--text-muted);font-size:11px;margin-left:auto;width:12px;text-align:center">▼</span>
+            </div>
+            <div class="diff-content" id="diff-content-${currentIdx}">
+              <div class="diff-side">
+                <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;">
+                  ← ${escapeHtml(left.user || 'DEFAULT')} @ ${escapeHtml(left.node)} ${left.appServer ? `<span class="badge badge-server">${escapeHtml(left.appServer)}</span>` : ''}
+                </div>
+                ${f.contentA ? sideA : '<span style="color:var(--text-muted);font-style:italic">File non presente</span>'}
+              </div>
+              <div class="diff-side">
+                <div style="font-size:10px;color:var(--text-muted);margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;">
+                  → ${escapeHtml(right.user || 'DEFAULT')} @ ${escapeHtml(right.node)} ${right.appServer ? `<span class="badge badge-server">${escapeHtml(right.appServer)}</span>` : ''}
+                </div>
+                ${f.contentB ? sideB : '<span style="color:var(--text-muted);font-style:italic">File non presente</span>'}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      html += `</div>`;
+    });
+
     container.innerHTML = html;
 
     // Toggle on header click

@@ -241,8 +241,16 @@
           </div>
 
           <!-- Filter box for comparison results (hidden initially) -->
-          <div id="compare-filter-container" class="hidden" style="margin-bottom:16px;background:var(--surface-raised);padding:10px;border-radius:8px;border:1px solid var(--border)">
-            <input id="compare-filter-input" type="text" placeholder="Filtra file confrontati per nome (es. agent, graph)..." style="width:100%;padding:8px 12px;background:var(--bg-base);border:1px solid var(--border);border-radius:6px;color:#fff;outline:none;font-size:13px;transition:border-color .15s" />
+          <div id="compare-filter-container" class="hidden" style="margin-bottom:16px;background:var(--surface-raised);padding:10px;border-radius:8px;border:1px solid var(--border);display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+            <input id="compare-filter-input" type="text" placeholder="Filtra file confrontati per nome (es. agent, graph)..." style="flex:1;min-width:200px;padding:8px 12px;background:var(--bg-base);border:1px solid var(--border);border-radius:6px;color:#fff;outline:none;font-size:13px;transition:border-color .15s" />
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;flex-shrink:0">
+              <label for="compare-group-select" style="color:var(--text-muted)">Raggruppa per:</label>
+              <select id="compare-group-select" style="background:var(--bg-base);border:1px solid var(--border);border-radius:6px;color:#fff;padding:8px 12px;outline:none;font-size:13px;cursor:pointer">
+                <option value="none">Nessuno (Lista)</option>
+                <option value="folder">Nome del Folder</option>
+                <option value="node">Nome del Nodo</option>
+              </select>
+            </div>
           </div>
 
           <!-- Results -->
