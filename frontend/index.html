@@ -86,6 +86,18 @@
           />
         </div>
 
+        <!-- Colore Tema A -->
+        <div class="field">
+          <label for="themeColor">Colore Tema</label>
+          <select id="themeColor" style="background:var(--bg-base); border:1px solid var(--border); border-radius:6px; color:#fff; padding:8px 12px; outline:none; font-size:13px; cursor:pointer;">
+            <option value="#3d7fff" selected>🔵 Blu (Default)</option>
+            <option value="#a855f7">🟣 Viola</option>
+            <option value="#10b981">🟢 Verde</option>
+            <option value="#f97316">🟠 Arancione</option>
+            <option value="#ef4444">🔴 Rosso</option>
+          </select>
+        </div>
+
       </div>
 
       <!-- Enable Environment B Checkbox -->
@@ -152,6 +164,18 @@
           <div class="field">
             <label for="componentPasswordB">Component Password B</label>
             <input id="componentPasswordB" type="password" value="acm" placeholder="acm" />
+          </div>
+
+          <!-- Colore Tema B -->
+          <div class="field">
+            <label for="themeColorB">Colore Tema B</label>
+            <select id="themeColorB" style="background:var(--bg-base); border:1px solid var(--border); border-radius:6px; color:#fff; padding:8px 12px; outline:none; font-size:13px; cursor:pointer;">
+              <option value="#3d7fff">🔵 Blu</option>
+              <option value="#a855f7" selected>🟣 Viola (Default)</option>
+              <option value="#10b981">🟢 Verde</option>
+              <option value="#f97316">🟠 Arancione</option>
+              <option value="#ef4444">🔴 Rosso</option>
+            </select>
           </div>
         </div>
       </div>
@@ -240,12 +264,14 @@ document.getElementById('login-form').addEventListener('submit', async e => {
   const serviceUsername   = document.getElementById('serviceUsername').value.trim();
   const componentPassword = document.getElementById('componentPassword').value.trim();
   const acmDllPath        = document.getElementById('acmDllPath').value.trim();
+  const themeColor        = document.getElementById('themeColor').value;
 
   const enableEnvB        = document.getElementById('enable-env-B').checked;
   const appServerB         = document.getElementById('appServerB').value.trim();
   const componentIdB       = document.getElementById('componentIdB').value.trim();
   const serviceUsernameB   = document.getElementById('serviceUsernameB').value.trim();
   const componentPasswordB = document.getElementById('componentPasswordB').value.trim();
+  const themeColorB        = document.getElementById('themeColorB').value;
 
   if (!appServer)  return showAlert('App Server (Ambiente A) è obbligatorio.');
   if (!componentId)return showAlert('Component ID (Ambiente A) è obbligatorio.');
@@ -306,12 +332,14 @@ document.getElementById('login-form').addEventListener('submit', async e => {
     sessionStorage.setItem('cc_appServer_A',   dataA.appServer);
     sessionStorage.setItem('cc_componentId_A', dataA.componentId);
     sessionStorage.setItem('cc_username_A',    serviceUsername);
+    sessionStorage.setItem('cc_themeColor_A',  themeColor);
 
     // Fallbacks
     sessionStorage.setItem('cc_token',       dataA.token);
     sessionStorage.setItem('cc_appServer',   dataA.appServer);
     sessionStorage.setItem('cc_componentId', dataA.componentId);
     sessionStorage.setItem('cc_username',    serviceUsername);
+    sessionStorage.setItem('cc_themeColor',  themeColor);
 
     if (enableEnvB && dataB) {
       // Store Environment B
@@ -319,6 +347,7 @@ document.getElementById('login-form').addEventListener('submit', async e => {
       sessionStorage.setItem('cc_appServer_B',   dataB.appServer);
       sessionStorage.setItem('cc_componentId_B', dataB.componentId);
       sessionStorage.setItem('cc_username_B',    serviceUsernameB);
+      sessionStorage.setItem('cc_themeColor_B',  themeColorB);
       sessionStorage.setItem('cc_multiEnv',      'true');
     } else {
       sessionStorage.setItem('cc_multiEnv',      'false');
@@ -384,11 +413,13 @@ function applyProfileSelection(side, alias) {
     document.getElementById('componentId').value = profile.componentId || '';
     document.getElementById('serviceUsername').value = profile.username || '';
     document.getElementById('componentPassword').value = profile.password || 'acm';
+    document.getElementById('themeColor').value = profile.themeColor || '#3d7fff';
   } else {
     document.getElementById('appServerB').value = profile.appServer || '';
     document.getElementById('componentIdB').value = profile.componentId || '';
     document.getElementById('serviceUsernameB').value = profile.username || '';
     document.getElementById('componentPasswordB').value = profile.password || 'acm';
+    document.getElementById('themeColorB').value = profile.themeColor || '#a855f7';
   }
 
   if (btnDelete) btnDelete.classList.remove('hidden');
@@ -407,14 +438,16 @@ function saveCurrentAsProfile(side) {
       appServer: document.getElementById('appServer').value.trim(),
       componentId: document.getElementById('componentId').value.trim(),
       username: document.getElementById('serviceUsername').value.trim(),
-      password: document.getElementById('componentPassword').value.trim()
+      password: document.getElementById('componentPassword').value.trim(),
+      themeColor: document.getElementById('themeColor').value
     };
   } else {
     profile = {
       appServer: document.getElementById('appServerB').value.trim(),
       componentId: document.getElementById('componentIdB').value.trim(),
       username: document.getElementById('serviceUsernameB').value.trim(),
-      password: document.getElementById('componentPasswordB').value.trim()
+      password: document.getElementById('componentPasswordB').value.trim(),
+      themeColor: document.getElementById('themeColorB').value
     };
   }
 

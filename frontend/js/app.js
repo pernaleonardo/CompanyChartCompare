@@ -84,8 +84,7 @@ async function init() {
     envTabsContainer.classList.add('hidden');
   }
 
-  const sidebar = document.querySelector('.sidebar');
-  if (sidebar) sidebar.classList.remove('env-B-active');
+  applyEnvironmentTheme(activeSide);
 
   // Populate compare headers
   if (isMultiEnv) {
@@ -210,15 +209,7 @@ function switchSidebarSide(side) {
     btn.classList.toggle('active', btn.id === `tab-env-${side}`);
   });
 
-  // Toggle active environment class on sidebar
-  const sidebar = document.querySelector('.sidebar');
-  if (sidebar) {
-    if (side === 'B') {
-      sidebar.classList.add('env-B-active');
-    } else {
-      sidebar.classList.remove('env-B-active');
-    }
-  }
+  applyEnvironmentTheme(side);
 
   // Update Tree data
   const currentHierarchy = side === 'A' ? rawHierarchyA : rawHierarchyB;
@@ -704,6 +695,8 @@ async function swapCompareSides() {
   $('cmp-headerA').innerHTML = `← Lato A (sinistra) <span class="badge badge-server">${sessA.appServer}</span>`;
   $('cmp-headerB').innerHTML = `→ Lato B (destra) <span class="badge badge-server">${sessB.appServer}</span>`;
 
+  applyEnvironmentTheme(activeSide);
+
   // 5. Re-init compare dropdown values
   populateCompareNodeDropdowns();
   
@@ -737,24 +730,50 @@ async function swapCompareSides() {
   }
 }
 
+// ── Apply theme colors dynamically ─────────────────────────
+function applyEnvironmentTheme(side) {
+  const color = sessionStorage.getItem(`cc_themeColor_${side}`) || (side === 'A' ? '#3d7fff' : '#a855f7');
+  
+  const THEME_PRESETS = {
+    '#3d7fff': { bright: '#5b9aff', dim: '#1a4db3', glow: 'rgba(61,127,255,.25)', glowLight: 'rgba(61,127,255,.05)' },
+    '#a855f7': { bright: '#c084fc', dim: '#7e22ce', glow: 'rgba(168,85,247,.25)', glowLight: 'rgba(168,85,247,.08)' },
+    '#10b981': { bright: '#34d399', dim: '#047857', glow: 'rgba(16,185,129,.25)', glowLight: 'rgba(16,185,129,.08)' },
+    '#f97316': { bright: '#fb923c', dim: '#c2410c', glow: 'rgba(249,115,22,.25)', glowLight: 'rgba(249,115,22,.08)' },
+    '#ef4444': { bright: '#f87171', dim: '#b91c1c', glow: 'rgba(239,68,68,.25)', glowLight: 'rgba(239,68,68,.08)' }
+  };
+  
+  const preset = THEME_PRESETS[color] || THEME_PRESETS['#3d7fff'];
+  
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) {
+    sidebar.style.setProperty('--accent', color);
+    sidebar.style.setProperty('--accent-bright', preset.bright);
+    sidebar.style.setProperty('--accent-dim', preset.dim);
+    sidebar.style.setProperty('--accent-glow', preset.glow);
+    sidebar.style.setProperty('--text-accent', preset.bright);
+    sidebar.style.setProperty('--tab-bg-active', preset.glowLight);
+  }
+}
+
 // ── Start ─────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', init);
 
 // ── Expose action functions to inline onclick handlers ────
-window.viewConfig            = viewConfig;
-window.downloadConfig        = downloadConfig;
-window.downloadDefaultConfig = downloadDefaultConfig;
+window.viewConfig             = viewConfig;
+window.downloadConfig         = downloadConfig;
+window.downloadDefaultConfig  = downloadDefaultConfig;
 window.downloadFullConfigNode = downloadFullConfigNode;
-window.setCompareB           = setCompareB;
-window.openAssignUserModal   = openAssignUserModal;
-window.closeAssignUserModal  = closeAssignUserModal;
-window.confirmAssignUser     = confirmAssignUser;
-window.removeUserFromNode    = removeUserFromNode;
-window.populateCompareUsers  = populateCompareUsers;
-window.switchTab             = switchTab;
-window.runCompare            = runCompare;
-window.switchSidebarSide     = switchSidebarSide;
-window.swapCompareSides      = swapCompareSides;
+window.setCompareB            = setCompareB;
+window.openAssignUserModal    = openAssignUserModal;
+window.closeAssignUserModal   = closeAssignUserModal;
+window.confirmAssignUser      = confirmAssignUser;
+window.removeUserFromNode     = removeUserFromNode;
+window.populateCompareUsers   = populateCompareUsers;
+window.switchTab              = switchTab;
+window.runCompare             = runCompare;
+window.switchSidebarSide      = switchSidebarSide;
+window.swapCompareSides       = swapCompareSides;
+window.applyEnvironmentTheme  = applyEnvironmentTheme;
 
 
 

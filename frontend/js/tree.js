@@ -14,7 +14,18 @@ const Tree = (() => {
   const LEVEL_COLORS = ['l0','l1','l2','l3','l4'];
   function levelClass(lv) { return `badge-l${Math.min(lv, LEVEL_COLORS.length - 1)}`; }
 
-  const LEVEL_ICONS = ['🌐','🏭','🏢','👤','📄'];
+  const LEVEL_ICONS = [
+    // Level 0: Globe (Mondo) - uses color: var(--accent) to dynamically take theme color
+    `<svg class="tree-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent); vertical-align: middle;"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>`,
+    // Level 1: Factory (Fabbrica)
+    `<svg class="tree-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary); vertical-align: middle;"><path d="M22 21H2V3l7 4 7-4 6 4v14z"></path><path d="M6 17h2v4H6v-4z"></path><path d="M10 17h2v4h-2v-4z"></path><path d="M14 17h2v4h-2v-4z"></path></svg>`,
+    // Level 2: Building (Azienda)
+    `<svg class="tree-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary); vertical-align: middle;"><rect x="4" y="2" width="16" height="20" rx="2" ry="2"></rect><line x1="9" y1="22" x2="9" y2="16"></line><line x1="15" y1="22" x2="15" y2="16"></line><line x1="9" y1="16" x2="15" y2="16"></line><path d="M8 6h.01M16 6h.01M8 10h.01M16 10h.01M12 6h.01M12 10h.01"></path></svg>`,
+    // Level 3: User (Utente)
+    `<svg class="tree-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary); vertical-align: middle;"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`,
+    // Level 4: Document (File)
+    `<svg class="tree-svg-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-secondary); vertical-align: middle;"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>`
+  ];
   function levelIcon(lv) { return LEVEL_ICONS[Math.min(lv, LEVEL_ICONS.length - 1)]; }
 
   // ── Count non-service users for a component ──────────────

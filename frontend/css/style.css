@@ -449,7 +449,8 @@ body {
 .tree-toggle:hover { color: var(--text-primary); }
 .tree-toggle.open { transform: rotate(90deg); color: var(--text-accent); }
 
-.node-icon { font-size: 14px; flex-shrink: 0; }
+.node-icon { font-size: 14px; flex-shrink: 0; display: inline-flex; align-items: center; }
+.node-icon svg { display: inline-block; vertical-align: middle; }
 
 .node-name {
   flex: 1; font-size: 13px; font-weight: 500;
@@ -916,14 +917,6 @@ tbody td .username { font-family: 'JetBrains Mono', monospace; font-size: 12px; 
 }
 .sidebar {
   --tab-bg-active: rgba(61, 127, 255, 0.05);
-}
-.sidebar.env-B-active {
-  --accent:         #c084fc;
-  --accent-bright:  #e9d5ff;
-  --accent-dim:     #7e22ce;
-  --accent-glow:    rgba(168, 85, 247, 0.25);
-  --text-accent:    #c084fc;
-  --tab-bg-active:  rgba(168, 85, 247, 0.08);
 }
 
 .env-tab {
