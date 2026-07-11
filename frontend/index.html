@@ -34,6 +34,20 @@
     <form id="login-form" novalidate>
       <div class="field-group">
 
+        <!-- Profile A Selector -->
+        <div class="field" style="grid-column: span 2;">
+          <label for="profile-select-A" style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Profilo Ambiente A</span>
+            <div style="display:flex; gap:8px;">
+              <span id="btn-save-profile-A" style="font-size:11px; color:var(--accent-bright); cursor:pointer;" role="button">💾 Salva Corrente</span>
+              <span id="btn-delete-profile-A" style="font-size:11px; color:var(--danger); cursor:pointer;" class="hidden" role="button">🗑️ Rimuovi</span>
+            </div>
+          </label>
+          <select id="profile-select-A" style="width:100%; background:var(--bg-base); border:1px solid var(--border); border-radius:6px; padding:8px 12px; color:#fff; font-size:13px; outline:none; cursor:pointer;">
+            <option value="">— seleziona profilo —</option>
+          </select>
+        </div>
+
         <!-- App Server -->
         <div class="field">
           <label for="appServer">App Server</label>
@@ -84,6 +98,21 @@
       <div id="env-B-fields" class="hidden" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);">
         <p class="login-subtitle" style="margin-bottom: 12px; font-weight: 600; color: var(--accent-bright);">Parametri Ambiente B (Destinazione)</p>
         <div class="field-group">
+
+          <!-- Profile B Selector -->
+          <div class="field" style="grid-column: span 2;">
+            <label for="profile-select-B" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>Profilo Ambiente B</span>
+              <div style="display:flex; gap:8px;">
+                <span id="btn-save-profile-B" style="font-size:11px; color:var(--accent-bright); cursor:pointer;" role="button">💾 Salva Corrente</span>
+                <span id="btn-delete-profile-B" style="font-size:11px; color:var(--danger); cursor:pointer;" class="hidden" role="button">🗑️ Rimuovi</span>
+              </div>
+            </label>
+            <select id="profile-select-B" style="width:100%; background:var(--bg-base); border:1px solid var(--border); border-radius:6px; padding:8px 12px; color:#fff; font-size:13px; outline:none; cursor:pointer;">
+              <option value="">— seleziona profilo —</option>
+            </select>
+          </div>
+
           <!-- App Server B -->
           <div class="field">
             <label for="appServerB">App Server B</label>
@@ -305,6 +334,136 @@ document.getElementById('login-form').addEventListener('submit', async e => {
     btnText.classList.remove('hidden');
     btnSpinner.classList.add('hidden');
   }
+});
+
+// ── Connection profiles management ────────────────────────
+let connectionProfiles = {};
+
+function loadProfiles() {
+  try {
+    const stored = localStorage.getItem('cc_connection_profiles');
+    connectionProfiles = stored ? JSON.parse(stored) : {};
+  } catch (_) {
+    connectionProfiles = {};
+  }
+}
+
+function saveProfiles() {
+  try {
+    localStorage.setItem('cc_connection_profiles', JSON.stringify(connectionProfiles));
+  } catch (_) {}
+}
+
+function populateProfileDropdowns() {
+  loadProfiles();
+  const selectA = document.getElementById('profile-select-A');
+  const selectB = document.getElementById('profile-select-B');
+
+  const aliases = Object.keys(connectionProfiles).sort();
+  const optionsHTML = [
+    '<option value="">— seleziona profilo —</option>',
+    ...aliases.map(a => `<option value="${a}">${a}</option>`)
+  ].join('');
+
+  if (selectA) selectA.innerHTML = optionsHTML;
+  if (selectB) selectB.innerHTML = optionsHTML;
+}
+
+function applyProfileSelection(side, alias) {
+  const btnDelete = document.getElementById(`btn-delete-profile-${side}`);
+  if (!alias) {
+    if (btnDelete) btnDelete.classList.add('hidden');
+    return;
+  }
+
+  const profile = connectionProfiles[alias];
+  if (!profile) return;
+
+  if (side === 'A') {
+    document.getElementById('appServer').value = profile.appServer || '';
+    document.getElementById('componentId').value = profile.componentId || '';
+    document.getElementById('serviceUsername').value = profile.username || '';
+    document.getElementById('componentPassword').value = profile.password || 'acm';
+  } else {
+    document.getElementById('appServerB').value = profile.appServer || '';
+    document.getElementById('componentIdB').value = profile.componentId || '';
+    document.getElementById('serviceUsernameB').value = profile.username || '';
+    document.getElementById('componentPasswordB').value = profile.password || 'acm';
+  }
+
+  if (btnDelete) btnDelete.classList.remove('hidden');
+}
+
+function saveCurrentAsProfile(side) {
+  const alias = prompt('Inserisci un alias per questo profilo (es. DEV, UAT):');
+  if (!alias) return;
+
+  const name = alias.trim();
+  if (!name) return;
+
+  let profile = {};
+  if (side === 'A') {
+    profile = {
+      appServer: document.getElementById('appServer').value.trim(),
+      componentId: document.getElementById('componentId').value.trim(),
+      username: document.getElementById('serviceUsername').value.trim(),
+      password: document.getElementById('componentPassword').value.trim()
+    };
+  } else {
+    profile = {
+      appServer: document.getElementById('appServerB').value.trim(),
+      componentId: document.getElementById('componentIdB').value.trim(),
+      username: document.getElementById('serviceUsernameB').value.trim(),
+      password: document.getElementById('componentPasswordB').value.trim()
+    };
+  }
+
+  if (!profile.appServer || !profile.componentId) {
+    alert('Compila almeno App Server e Component ID prima di salvare.');
+    return;
+  }
+
+  connectionProfiles[name] = profile;
+  saveProfiles();
+  populateProfileDropdowns();
+  
+  // Set the select element value to the newly saved profile
+  document.getElementById(`profile-select-${side}`).value = name;
+  document.getElementById(`btn-delete-profile-${side}`).classList.remove('hidden');
+}
+
+function deleteProfile(side) {
+  const select = document.getElementById(`profile-select-${side}`);
+  const alias = select.value;
+  if (!alias) return;
+
+  if (confirm(`Sei sicuro di voler rimuovere il profilo "${alias}"?`)) {
+    delete connectionProfiles[alias];
+    saveProfiles();
+    populateProfileDropdowns();
+    document.getElementById(`btn-delete-profile-${side}`).classList.add('hidden');
+  }
+}
+
+// Bind profile events
+document.addEventListener('DOMContentLoaded', () => {
+  populateProfileDropdowns();
+
+  const selectA = document.getElementById('profile-select-A');
+  const selectB = document.getElementById('profile-select-B');
+  const btnSaveA = document.getElementById('btn-save-profile-A');
+  const btnSaveB = document.getElementById('btn-save-profile-B');
+  const btnDelA = document.getElementById('btn-delete-profile-A');
+  const btnDelB = document.getElementById('btn-delete-profile-B');
+
+  if (selectA) selectA.addEventListener('change', e => applyProfileSelection('A', e.target.value));
+  if (selectB) selectB.addEventListener('change', e => applyProfileSelection('B', e.target.value));
+
+  if (btnSaveA) btnSaveA.addEventListener('click', () => saveCurrentAsProfile('A'));
+  if (btnSaveB) btnSaveB.addEventListener('click', () => saveCurrentAsProfile('B'));
+
+  if (btnDelA) btnDelA.addEventListener('click', () => deleteProfile('A'));
+  if (btnDelB) btnDelB.addEventListener('click', () => deleteProfile('B'));
 });
 
 // ── Auto-redirect if already logged in ───────────────────
