@@ -198,7 +198,10 @@ body {
   background: rgba(61,127,255,.05);
   box-shadow: 0 0 0 3px rgba(61,127,255,.12);
 }
-.field select option { background: var(--bg-card); }
+.field select option, select option {
+  background-color: #162040 !important;
+  color: #e2e8f0 !important;
+}
 
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 

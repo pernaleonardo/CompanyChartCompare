@@ -651,6 +651,9 @@ function populateCompareUsers(side, nodeAlias, envSide = side) {
   }).join('');
 
   selectUser.innerHTML = ['<option value="">— seleziona utente —</option>', optionsHTML].join('');
+  
+  // Auto-select the DEFAULT option
+  selectUser.value = 'DEFAULT';
 }
 
 // ── Swap environments and Compare side configurations ─────
