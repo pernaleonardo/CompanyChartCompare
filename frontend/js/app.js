@@ -124,6 +124,24 @@ async function init() {
     }
   });
 
+  // Credits modal
+  const btnCredits = $('btn-credits');
+  const modalCredits = $('modal-credits');
+  const btnCloseCredits = $('btn-close-credits');
+  const btnCloseCreditsOk = $('btn-close-credits-ok');
+
+  if (btnCredits && modalCredits) {
+    btnCredits.addEventListener('click', () => {
+      modalCredits.classList.remove('hidden');
+    });
+  }
+  if (btnCloseCredits && modalCredits) {
+    btnCloseCredits.addEventListener('click', () => modalCredits.classList.add('hidden'));
+  }
+  if (btnCloseCreditsOk && modalCredits) {
+    btnCloseCreditsOk.addEventListener('click', () => modalCredits.classList.add('hidden'));
+  }
+
   // Swap button
   const swapBtn = $('btn-swap');
   if (swapBtn) {

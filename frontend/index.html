@@ -214,8 +214,50 @@
 
     <div class="separator"></div>
     <p style="text-align:center;font-size:11px;color:var(--text-muted);">
-      SedApta Company Chart Frontend &nbsp;·&nbsp; v1.0.0
+      SedApta Company Chart Frontend &nbsp;·&nbsp; v1.0.0 &nbsp;·&nbsp; <a href="#" id="link-credits" style="color: var(--accent-bright); text-decoration: none; cursor: pointer;">✨ Crediti</a>
     </p>
+  </div>
+</div>
+
+<!-- ── Modal: Credits ──────────────────────────────────────── -->
+<div id="modal-credits" class="modal-backdrop hidden" role="dialog" aria-modal="true">
+  <div class="modal" style="width: 480px; max-width: 90vw;">
+    <div class="modal-header">
+      <h3>✨ Informazioni & Crediti</h3>
+      <span class="modal-close" id="btn-close-credits" aria-label="Chiudi">&times;</span>
+    </div>
+    <div class="modal-body" style="text-align: center; display: flex; flex-direction: column; gap: 16px; padding: 24px; background: var(--bg-surface);">
+      <div style="font-size: 48px; filter: drop-shadow(0 0 10px var(--accent));">🏢</div>
+      <div>
+        <h4 style="font-size: 18px; color: var(--text-primary); font-weight: 700; margin-bottom: 4px;">SedApta Company Chart</h4>
+        <span style="font-size: 12px; color: var(--accent-bright); font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">Configuration Manager & Compare</span>
+      </div>
+      
+      <div style="border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 16px 0; display: flex; flex-direction: column; gap: 12px; text-align: left; font-size: 13.5px;">
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-secondary);">Versione Applicazione:</span>
+          <strong style="color: var(--text-primary);">v1.0.0</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between;">
+          <span style="color: var(--text-secondary);">Sviluppo:</span>
+          <strong style="color: var(--text-primary);">sedApta / Kering Team</strong>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <span style="color: var(--text-secondary);">AI Assistant:</span>
+          <strong style="color: var(--accent-bright); display: flex; align-items: center; gap: 4px;">
+            <span>Antigravity</span>
+            <span style="font-size: 11px; padding: 1px 6px; background: rgba(139,92,246,.15); color: var(--purple); border: 1px solid rgba(139,92,246,.25); border-radius: 10px;">DeepMind</span>
+          </strong>
+        </div>
+      </div>
+      
+      <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: 0;">
+        Sviluppato in collaborazione con l'agente autonomo di intelligenza artificiale <strong>Antigravity</strong> del team di ricerca Advanced Agentic Coding di <strong>Google DeepMind</strong>.
+      </p>
+    </div>
+    <div class="modal-footer" style="justify-content: center; background: var(--bg-surface); border-top: 1px solid var(--border);">
+      <button class="btn btn-primary" id="btn-close-credits-ok" style="min-width: 100px;">Chiudi</button>
+    </div>
   </div>
 </div>
 
@@ -497,6 +539,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (btnDelA) btnDelA.addEventListener('click', () => deleteProfile('A'));
   if (btnDelB) btnDelB.addEventListener('click', () => deleteProfile('B'));
+
+  // Credits modal
+  const modalCredits = document.getElementById('modal-credits');
+  const linkCredits  = document.getElementById('link-credits');
+  const btnCloseCredits = document.getElementById('btn-close-credits');
+  const btnCloseCreditsOk = document.getElementById('btn-close-credits-ok');
+
+  if (linkCredits && modalCredits) {
+    linkCredits.addEventListener('click', e => {
+      e.preventDefault();
+      modalCredits.classList.remove('hidden');
+    });
+  }
+  if (btnCloseCredits && modalCredits) {
+    btnCloseCredits.addEventListener('click', () => modalCredits.classList.add('hidden'));
+  }
+  if (btnCloseCreditsOk && modalCredits) {
+    btnCloseCreditsOk.addEventListener('click', () => modalCredits.classList.add('hidden'));
+  }
 });
 
 // ── Auto-redirect if already logged in ───────────────────
