@@ -914,19 +914,35 @@ tbody td .username { font-family: 'JetBrains Mono', monospace; font-size: 12px; 
 .sidebar-env-tabs.hidden {
   display: none !important;
 }
+.sidebar {
+  --tab-bg-active: rgba(61, 127, 255, 0.05);
+}
+.sidebar.env-B-active {
+  --accent:         #c084fc;
+  --accent-bright:  #e9d5ff;
+  --accent-dim:     #7e22ce;
+  --accent-glow:    rgba(168, 85, 247, 0.25);
+  --text-accent:    #c084fc;
+  --tab-bg-active:  rgba(168, 85, 247, 0.08);
+}
+
 .env-tab {
   flex: 1;
-  padding: 12px;
+  padding: 12px 8px;
   border: none;
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
   font-weight: 600;
-  font-size: 12px;
+  font-size: 11px;
   outline: none;
   transition: all var(--dur) var(--ease);
   border-bottom: 2px solid transparent;
   text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 50%;
 }
 .env-tab:hover {
   color: var(--text-primary);
@@ -935,7 +951,7 @@ tbody td .username { font-family: 'JetBrains Mono', monospace; font-size: 12px; 
 .env-tab.active {
   color: var(--accent-bright);
   border-bottom-color: var(--accent);
-  background: rgba(61, 127, 255, 0.05);
+  background: var(--tab-bg-active);
 }
 
 .badge-server {

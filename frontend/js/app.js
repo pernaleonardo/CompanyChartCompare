@@ -70,11 +70,22 @@ async function init() {
   const envTabsContainer = $('sidebar-env-tabs');
   if (isMultiEnv) {
     envTabsContainer.classList.remove('hidden');
-    $('tab-env-A').textContent = `A: ${sessA.appServer.split('.')[0]}`;
-    $('tab-env-B').textContent = `B: ${sessB.appServer.split('.')[0]}`;
+    const tabA = $('tab-env-A');
+    const tabB = $('tab-env-B');
+    if (tabA) {
+      tabA.textContent = `A: ${sessA.appServer}`;
+      tabA.title = sessA.appServer;
+    }
+    if (tabB) {
+      tabB.textContent = `B: ${sessB.appServer}`;
+      tabB.title = sessB.appServer;
+    }
   } else {
     envTabsContainer.classList.add('hidden');
   }
+
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) sidebar.classList.remove('env-B-active');
 
   // Populate compare headers
   if (isMultiEnv) {
@@ -198,6 +209,16 @@ function switchSidebarSide(side) {
   document.querySelectorAll('.env-tab').forEach(btn => {
     btn.classList.toggle('active', btn.id === `tab-env-${side}`);
   });
+
+  // Toggle active environment class on sidebar
+  const sidebar = document.querySelector('.sidebar');
+  if (sidebar) {
+    if (side === 'B') {
+      sidebar.classList.add('env-B-active');
+    } else {
+      sidebar.classList.remove('env-B-active');
+    }
+  }
 
   // Update Tree data
   const currentHierarchy = side === 'A' ? rawHierarchyA : rawHierarchyB;
@@ -669,8 +690,16 @@ async function swapCompareSides() {
 
   $('topbar-server').textContent   = `A: ${sessA.appServer} | B: ${sessB.appServer}`;
   $('topbar-component').textContent = `${sessA.componentId.toUpperCase()} / ${sessB.componentId.toUpperCase()}`;
-  $('tab-env-A').textContent = `A: ${sessA.appServer.split('.')[0]}`;
-  $('tab-env-B').textContent = `B: ${sessB.appServer.split('.')[0]}`;
+  const tabA = $('tab-env-A');
+  const tabB = $('tab-env-B');
+  if (tabA) {
+    tabA.textContent = `A: ${sessA.appServer}`;
+    tabA.title = sessA.appServer;
+  }
+  if (tabB) {
+    tabB.textContent = `B: ${sessB.appServer}`;
+    tabB.title = sessB.appServer;
+  }
 
   $('cmp-headerA').innerHTML = `← Lato A (sinistra) <span class="badge badge-server">${sessA.appServer}</span>`;
   $('cmp-headerB').innerHTML = `→ Lato B (destra) <span class="badge badge-server">${sessB.appServer}</span>`;
