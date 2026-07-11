@@ -949,3 +949,8 @@ tbody td .username { font-family: 'JetBrains Mono', monospace; font-size: 12px; 
   margin-left: 6px;
   display: inline-block;
 }
+
+#compare-context-menu button:hover {
+  background: var(--bg-hover) !important;
+  color: var(--accent-bright) !important;
+}

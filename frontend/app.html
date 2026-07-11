@@ -234,9 +234,12 @@
 
           </div>
 
-          <div style="text-align:center;margin-bottom:24px;">
+          <div style="display:flex; justify-content:center; gap:12px; margin-bottom:24px; align-items:center; flex-wrap:wrap">
             <button id="btn-run-compare" class="btn btn-primary btn-lg" aria-label="Avvia confronto configurazioni">
               🔍 Avvia confronto
+            </button>
+            <button id="btn-manage-exclusions" class="btn btn-ghost btn-lg" style="border: 1px solid var(--border)" title="Gestisci i tag/proprietà da escludere dal confronto">
+              ⚙ Gestisci Esclusioni
             </button>
           </div>
 
@@ -250,6 +253,13 @@
                 <option value="folder">Nome del Folder</option>
                 <option value="node">Nome del Nodo</option>
               </select>
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-muted);cursor:pointer;user-select:none;flex-shrink:0">
+              <input type="checkbox" id="compare-hide-equal" style="width:14px;height:14px;cursor:pointer" />
+              Nascondi uguali
+            </label>
+            <!-- Quick indicator -->
+            <div id="compare-excl-indicator" class="hidden" style="display:flex;align-items:center;gap:10px;font-size:12.5px;flex-shrink:0;background:rgba(255,255,255,.02);padding:6px 10px;border-radius:6px;border:1px solid var(--border)">
             </div>
           </div>
 
@@ -318,6 +328,60 @@
       <button class="btn btn-primary" id="btn-confirm-assign" onclick="confirmAssignUser()">✓ Assegna</button>
     </div>
   </div>
+</div>
+
+<!-- ── Modal: Manage Exclusions ──────────────────────────── -->
+<div id="modal-exclusions" class="modal-backdrop hidden" style="z-index: 210;">
+  <div class="modal" style="width: 550px; max-height: 85vh;">
+    <div class="modal-header">
+      <h3>⚙ Gestisci Esclusioni Tag per File</h3>
+      <span class="modal-close" id="btn-close-exclusions" aria-label="Chiudi">&times;</span>
+    </div>
+    <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+      
+      <!-- Enable/Disable checkbox -->
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; font-size: 13.5px; font-weight: 600; border-bottom: 1px solid var(--border); padding-bottom: 12px;">
+        <input type="checkbox" id="exclusions-active-checkbox" checked style="width: 16px; height: 16px; cursor: pointer;">
+        Attiva esclusioni nel confronto
+      </label>
+
+      <!-- Form to add new exclusion rule -->
+      <div style="background: rgba(255,255,255,.02); border: 1px solid var(--border); padding: 12px; border-radius: var(--radius-md);">
+        <h4 style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase;">Aggiungi Regola di Esclusione</h4>
+        <div style="display: flex; gap: 8px; align-items: flex-end;">
+          <div style="flex: 1;">
+            <label for="excl-filename" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Tipo/Nome File (es. agent.json)</label>
+            <input type="text" id="excl-filename" placeholder="agent.json" style="width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; color: #fff; font-size: 13px; outline: none;" />
+          </div>
+          <div style="flex: 1;">
+            <label for="excl-property" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Proprietà/Tag (es. appServer)</label>
+            <input type="text" id="excl-property" placeholder="appServer" style="width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; color: #fff; font-size: 13px; outline: none;" />
+          </div>
+          <button id="btn-add-exclusion" class="btn btn-primary" style="padding: 7px 14px; font-size: 13px; font-weight: 600;">Aggiungi</button>
+        </div>
+      </div>
+
+      <!-- Exclusions List -->
+      <div>
+        <h4 style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase;">Regole Attive</h4>
+        <div id="exclusions-list-container" style="border: 1px solid var(--border); border-radius: var(--radius-md); max-height: 250px; overflow-y: auto; background: var(--bg-card);">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button id="btn-clear-all-exclusions" class="btn btn-danger" style="margin-right: auto;">Azzera Tutte</button>
+      <button id="btn-save-exclusions" class="btn btn-primary">✓ Applica</button>
+    </div>
+  </div>
+</div>
+
+<!-- Context Menu for exclusions -->
+<div id="compare-context-menu" class="hidden" style="position: absolute; z-index: 1000; background: var(--bg-card-2); border: 1px solid var(--border); box-shadow: var(--shadow-md); border-radius: var(--radius-sm); padding: 4px 0; min-width: 200px;">
+  <button id="btn-context-exclude" style="width: 100%; text-align: left; background: none; border: none; color: var(--text-primary); padding: 8px 12px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-family: inherit; transition: background .15s;">
+    🚫 Escludi tag "<span id="context-key-name" style="font-weight: 700; color: var(--accent-bright);"></span>"
+  </button>
 </div>
 
 <!-- Toast container -->

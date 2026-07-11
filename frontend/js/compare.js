@@ -4,6 +4,33 @@
 
 const Compare = (() => {
 
+  // Exclusions state
+  let _exclusions = {}; // e.g. { "agent.json": ["appServer", "connectionString"] }
+  let _exclusionsEnabled = true;
+
+  function loadExclusionsFromStorage() {
+    try {
+      const stored = localStorage.getItem('cc_compare_exclusions');
+      if (stored) {
+        _exclusions = JSON.parse(stored);
+      } else {
+        _exclusions = {};
+      }
+      const enabled = localStorage.getItem('cc_compare_exclusions_enabled');
+      _exclusionsEnabled = enabled !== 'false';
+    } catch (_) {
+      _exclusions = {};
+      _exclusionsEnabled = true;
+    }
+  }
+
+  function saveExclusionsToStorage() {
+    try {
+      localStorage.setItem('cc_compare_exclusions', JSON.stringify(_exclusions));
+      localStorage.setItem('cc_compare_exclusions_enabled', _exclusionsEnabled.toString());
+    } catch (_) {}
+  }
+
   function formatIfJson(content) {
     if (!content) return '';
     const clean = content.replace(/^\ufeff/, '').trim();
@@ -41,11 +68,62 @@ const Compare = (() => {
     return String(s)
       .replace(/&/g,'&amp;')
       .replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;');
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  function getBaseName(filePath) {
+    if (!filePath) return '';
+    const cleanPath = filePath.replace(/\\/g, '/');
+    return cleanPath.split('/').pop();
+  }
+
+  // Deeply strip ignored keys from JSON object
+  function stripIgnoredKeys(obj, keysToIgnore) {
+    if (!obj || typeof obj !== 'object') return obj;
+
+    if (Array.isArray(obj)) {
+      return obj.map(item => stripIgnoredKeys(item, keysToIgnore));
+    }
+
+    const result = {};
+    for (const k in obj) {
+      if (Object.prototype.hasOwnProperty.call(obj, k)) {
+        const shouldIgnore = keysToIgnore.some(ignoreKey => 
+          ignoreKey.toLowerCase().trim() === k.toLowerCase().trim()
+        );
+
+        if (shouldIgnore) {
+          result[k] = "<escluso dal confronto>";
+        } else {
+          result[k] = stripIgnoredKeys(obj[k], keysToIgnore);
+        }
+      }
+    }
+    return result;
+  }
+
+  function processContent(content, filename) {
+    if (!content) return '';
+    const clean = content.replace(/^\ufeff/, '').trim();
+    try {
+      let parsed = JSON.parse(clean);
+      if (_exclusionsEnabled) {
+        const baseName = getBaseName(filename);
+        const keysToIgnore = _exclusions[baseName] || [];
+        if (keysToIgnore.length > 0) {
+          parsed = stripIgnoredKeys(parsed, keysToIgnore);
+        }
+      }
+      return JSON.stringify(parsed, null, 2);
+    } catch (_) {
+      return clean;
+    }
   }
 
   let _lastData = null;
   let _currentGrouping = 'none'; // 'none', 'folder', 'node'
+  let _hideEqual       = false;  // true to hide equal files from rendering
 
   // ── Render compare results into #compare-results ─────────
   function render(data) {
@@ -84,6 +162,17 @@ const Compare = (() => {
           groupSelect.dataset.bound = 'true';
         }
       }
+      const hideEqualCheckbox = document.getElementById('compare-hide-equal');
+      if (hideEqualCheckbox) {
+        hideEqualCheckbox.checked = _hideEqual;
+        if (!hideEqualCheckbox.dataset.bound) {
+          hideEqualCheckbox.addEventListener('change', e => {
+            _hideEqual = e.target.checked;
+            applyFilterAndGroup(filterInput ? filterInput.value : '');
+          });
+          hideEqualCheckbox.dataset.bound = 'true';
+        }
+      }
       
       filterContainer.classList.remove('hidden');
       
@@ -96,29 +185,70 @@ const Compare = (() => {
       }
     }
 
-    renderList(files);
+    updateQuickExclIndicator();
+    applyFilterAndGroup('');
   }
 
   function applyFilterAndGroup(query) {
     if (!_lastData || !_lastData.files) return;
     const q = query.toLowerCase().trim();
     
-    const filteredFiles = _lastData.files.filter(f => 
-      f.file.toLowerCase().includes(q)
-    );
+    // 1. Process files first (exclusions & status calculation)
+    const processed = _lastData.files.map(f => {
+      const processedA = processContent(f.contentA, f.file);
+      const processedB = processContent(f.contentB, f.file);
+      
+      let status = f.status;
+      if (f.contentA && f.contentB) {
+        if (processedA === processedB) {
+          status = 'equal';
+        } else {
+          status = 'modified';
+        }
+      }
+      return {
+        ...f,
+        status,
+        processedA,
+        processedB
+      };
+    });
 
-    renderList(filteredFiles);
+    // 2. Filter by search query
+    let filtered = processed;
+    if (q) {
+      filtered = filtered.filter(f => f.file.toLowerCase().includes(q));
+    }
+
+    // 3. Filter by hideEqual checkbox
+    if (_hideEqual) {
+      filtered = filtered.filter(f => f.status !== 'equal');
+    }
+
+    renderList(filtered);
   }
 
-  function renderList(filesList) {
+  function renderList(processedFiles) {
     const container = document.getElementById('compare-results');
     if (!container || !_lastData) return;
 
     const { left, right } = _lastData;
 
-    // Stats on filtered files
+    // Calculate total stats from ALL files (using processContent to respect active exclusions)
     const counts = { equal: 0, modified: 0, added: 0, removed: 0 };
-    filesList.forEach(f => { if (counts[f.status] !== undefined) counts[f.status]++; });
+    _lastData.files.forEach(f => {
+      const processedA = processContent(f.contentA, f.file);
+      const processedB = processContent(f.contentB, f.file);
+      let status = f.status;
+      if (f.contentA && f.contentB) {
+        if (processedA === processedB) {
+          status = 'equal';
+        } else {
+          status = 'modified';
+        }
+      }
+      if (counts[status] !== undefined) counts[status]++;
+    });
 
     let html = `
       <div class="diff-stats">
@@ -129,7 +259,7 @@ const Compare = (() => {
       </div>
     `;
 
-    if (filesList.length === 0) {
+    if (processedFiles.length === 0) {
       html += `
         <div class="empty-state" style="padding:20px;">
           <h3>Nessun file corrispondente al filtro</h3>
@@ -147,7 +277,6 @@ const Compare = (() => {
       return parts.join('/');
     }
 
-    // Node is usually the first folder segment
     function getNode(filePath) {
       const parts = filePath.replace(/\\/g, '/').split('/');
       if (parts.length <= 1) return 'Root (Base)';
@@ -157,19 +286,19 @@ const Compare = (() => {
     // Grouping
     let groups = {};
     if (_currentGrouping === 'folder') {
-      filesList.forEach(f => {
+      processedFiles.forEach(f => {
         const key = getFolder(f.file);
         if (!groups[key]) groups[key] = [];
         groups[key].push(f);
       });
     } else if (_currentGrouping === 'node') {
-      filesList.forEach(f => {
+      processedFiles.forEach(f => {
         const key = getNode(f.file);
         if (!groups[key]) groups[key] = [];
         groups[key].push(f);
       });
     } else {
-      groups['all'] = filesList;
+      groups['all'] = processedFiles;
     }
 
     // Sort group keys
@@ -198,7 +327,7 @@ const Compare = (() => {
       html += `<div class="diff-file-list" style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">`;
 
       groupFiles.forEach(f => {
-        const { linesA, linesB } = diffLines(f.contentA, f.contentB);
+        const { linesA, linesB } = diffLines(f.processedA, f.processedB);
         const sideA = renderSide(linesA, linesB, true);
         const sideB = renderSide(linesB, linesA, false);
         const currentIdx = fileIdx++;
@@ -258,5 +387,282 @@ const Compare = (() => {
     if (filterContainer) filterContainer.classList.add('hidden');
   }
 
-  return { render, clear };
+  function removeExclusionRule(file, prop = null) {
+    if (_exclusions[file]) {
+      if (prop) {
+        _exclusions[file] = _exclusions[file].filter(p => p !== prop);
+        if (_exclusions[file].length === 0) delete _exclusions[file];
+      } else {
+        delete _exclusions[file];
+      }
+      saveExclusionsToStorage();
+      renderExclusionsList();
+    }
+  }
+
+  function renderExclusionsList() {
+    const listContainer = document.getElementById('exclusions-list-container');
+    if (!listContainer) return;
+
+    const fileKeys = Object.keys(_exclusions).sort();
+    let html = '';
+
+    if (fileKeys.length === 0) {
+      listContainer.innerHTML = `
+        <div style="padding: 20px; text-align: center; color: var(--text-muted); font-size: 13px;">
+          Nessuna regola di esclusione configurata.
+        </div>
+      `;
+      return;
+    }
+
+    fileKeys.forEach(file => {
+      const props = _exclusions[file];
+      if (props.length === 0) return;
+
+      html += `
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border);">
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">📄 ${escapeHtml(file)}</span>
+            <span style="font-size: 11px; color: var(--text-muted);">Tag esclusi: ${props.map(p => `<strong style="color:var(--text-accent)">${escapeHtml(p)}</strong>`).join(', ')}</span>
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="Compare.removeExclusionRule('${escapeHtml(file)}')" title="Rimuovi regola" style="color: var(--danger); font-size:14px; padding:4px 8px;">✕</button>
+        </div>
+      `;
+    });
+
+    listContainer.innerHTML = html;
+  }
+
+  function updateQuickExclIndicator() {
+    const indicator = document.getElementById('compare-excl-indicator');
+    if (!indicator) return;
+
+    const ruleCount = Object.keys(_exclusions).length;
+    if (ruleCount === 0) {
+      indicator.classList.add('hidden');
+      return;
+    }
+
+    indicator.classList.remove('hidden');
+
+    if (_exclusionsEnabled) {
+      indicator.innerHTML = `
+        <span style="color:var(--warning);display:flex;align-items:center;gap:4px">⚠️ Esclusioni applicate (${ruleCount} file)</span>
+        <button id="btn-quick-toggle-excl" class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:11px;color:var(--accent-bright);border:1px solid rgba(61,127,255,.2)">Disattiva</button>
+      `;
+    } else {
+      indicator.innerHTML = `
+        <span style="color:var(--text-muted)">Esclusioni disattivate</span>
+        <button id="btn-quick-toggle-excl" class="btn btn-sm btn-ghost" style="padding:2px 6px;font-size:11px;color:var(--warning);border:1px solid rgba(245,158,11,.2)">Attiva</button>
+      `;
+    }
+
+    // Bind quick toggle listener
+    const btn = document.getElementById('btn-quick-toggle-excl');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        _exclusionsEnabled = !_exclusionsEnabled;
+        saveExclusionsToStorage();
+        updateQuickExclIndicator();
+        
+        // Refresh checkboxes in modal if open
+        const activeCheckbox = document.getElementById('exclusions-active-checkbox');
+        if (activeCheckbox) activeCheckbox.checked = _exclusionsEnabled;
+
+        // Re-render compare
+        if (_lastData) {
+          const filterInput = document.getElementById('compare-filter-input');
+          applyFilterAndGroup(filterInput ? filterInput.value : '');
+        }
+        Toast.success(_exclusionsEnabled ? 'Esclusioni attivate' : 'Esclusioni disattivate');
+      });
+    }
+  }
+
+  function initExclusionsModal() {
+    const btnManage = document.getElementById('btn-manage-exclusions');
+    const modal = document.getElementById('modal-exclusions');
+    const btnClose = document.getElementById('btn-close-exclusions');
+    const btnAdd = document.getElementById('btn-add-exclusion');
+    const btnClear = document.getElementById('btn-clear-all-exclusions');
+    const btnSave = document.getElementById('btn-save-exclusions');
+    const activeCheckbox = document.getElementById('exclusions-active-checkbox');
+
+    if (!btnManage || !modal) return;
+
+    // Load state
+    loadExclusionsFromStorage();
+
+    // Open modal
+    btnManage.addEventListener('click', () => {
+      loadExclusionsFromStorage();
+      activeCheckbox.checked = _exclusionsEnabled;
+      renderExclusionsList();
+      modal.classList.remove('hidden');
+      document.getElementById('excl-filename').value = '';
+      document.getElementById('excl-property').value = '';
+    });
+
+    // Close modal
+    const closeModal = () => modal.classList.add('hidden');
+    if (btnClose) btnClose.addEventListener('click', closeModal);
+    modal.addEventListener('click', e => {
+      if (e.target === modal) closeModal();
+    });
+
+    // Add exclusion rule
+    if (btnAdd) {
+      btnAdd.addEventListener('click', () => {
+        const file = document.getElementById('excl-filename').value.trim();
+        const prop = document.getElementById('excl-property').value.trim();
+
+        if (!file || !prop) {
+          Toast.error('Inserisci sia il nome del file che il tag da escludere.');
+          return;
+        }
+
+        if (!_exclusions[file]) _exclusions[file] = [];
+        if (!_exclusions[file].includes(prop)) {
+          _exclusions[file].push(prop);
+        }
+
+        document.getElementById('excl-property').value = '';
+        document.getElementById('excl-property').focus();
+
+        renderExclusionsList();
+      });
+    }
+
+    // Clear all
+    if (btnClear) {
+      btnClear.addEventListener('click', () => {
+        if (confirm('Sei sicuro di voler rimuovere tutte le regole di esclusione?')) {
+          _exclusions = {};
+          saveExclusionsToStorage();
+          renderExclusionsList();
+        }
+      });
+    }
+
+    // Save and apply
+    if (btnSave) {
+      btnSave.addEventListener('click', () => {
+        _exclusionsEnabled = activeCheckbox.checked;
+        saveExclusionsToStorage();
+        closeModal();
+        Toast.success('Esclusioni salvate e applicate');
+        
+        // Re-render compare
+        if (_lastData) {
+          const filterInput = document.getElementById('compare-filter-input');
+          applyFilterAndGroup(filterInput ? filterInput.value : '');
+        }
+        updateQuickExclIndicator();
+      });
+    }
+  }
+
+  function extractKeyFromLine(line) {
+    if (!line) return null;
+    const match = line.match(/"([^"]+)"\s*:/);
+    if (match) {
+      return match[1];
+    }
+    return null;
+  }
+
+  function initContextMenu() {
+    const resultsContainer = document.getElementById('compare-results');
+    const menu = document.getElementById('compare-context-menu');
+    const btnContext = document.getElementById('btn-context-exclude');
+
+    if (!resultsContainer || !menu) return;
+
+    // Show context menu on right click
+    resultsContainer.addEventListener('contextmenu', e => {
+      const lineEl = e.target.closest('.diff-line');
+      if (!lineEl) {
+        menu.classList.add('hidden');
+        return;
+      }
+
+      // Only allow excluding if the line is modified (del or add)
+      if (!lineEl.classList.contains('del') && !lineEl.classList.contains('add')) {
+        menu.classList.add('hidden');
+        return;
+      }
+
+      const key = extractKeyFromLine(lineEl.textContent);
+      if (!key) {
+        menu.classList.add('hidden');
+        return;
+      }
+
+      const diffFileEl = lineEl.closest('.diff-file');
+      if (!diffFileEl) return;
+
+      const filenameEl = diffFileEl.querySelector('.diff-file-name');
+      if (!filenameEl) return;
+
+      const fullPath = filenameEl.textContent.replace('📄', '').trim();
+      const baseName = getBaseName(fullPath);
+
+      e.preventDefault();
+
+      const span = document.getElementById('context-key-name');
+      if (span) span.textContent = key;
+
+      menu.style.left = `${e.pageX}px`;
+      menu.style.top = `${e.pageY}px`;
+      menu.classList.remove('hidden');
+
+      menu.dataset.file = baseName;
+      menu.dataset.key = key;
+    });
+
+    // Hide menu on clicking elsewhere
+    document.addEventListener('click', () => {
+      menu.classList.add('hidden');
+    });
+
+    // Hide menu on scrolling
+    document.addEventListener('scroll', () => {
+      menu.classList.add('hidden');
+    }, true);
+
+    // Exclude button handler
+    if (btnContext) {
+      btnContext.addEventListener('click', () => {
+        const file = menu.dataset.file;
+        const key = menu.dataset.key;
+        if (!file || !key) return;
+
+        if (!_exclusions[file]) _exclusions[file] = [];
+        if (!_exclusions[file].includes(key)) {
+          _exclusions[file].push(key);
+          saveExclusionsToStorage();
+          Toast.success(`Escluso tag "${key}" dal file "${file}"`);
+          
+          // Re-render comparison
+          _exclusionsEnabled = true;
+          saveExclusionsToStorage();
+          
+          const filterInput = document.getElementById('compare-filter-input');
+          applyFilterAndGroup(filterInput ? filterInput.value : '');
+          updateQuickExclIndicator();
+        } else {
+          Toast.info(`Il tag "${key}" è già escluso per "${file}"`);
+        }
+        menu.classList.add('hidden');
+      });
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initExclusionsModal();
+    initContextMenu();
+  });
+
+  return { render, clear, removeExclusionRule };
 })();
