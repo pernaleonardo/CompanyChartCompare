@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Company Chart – Login</title>
+  <meta name="description" content="Login to the SedApta Company Chart management frontend." />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="login-bg">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="login-card" role="main">
+
+    <!-- Logo -->
+    <div class="login-logo">
+      <div class="logo-icon" aria-hidden="true">🏢</div>
+      <div>
+        <h1>Company Chart</h1>
+        <span>Configuration Management</span>
+      </div>
+    </div>
+
+    <p class="login-title">Accedi al sistema</p>
+    <p class="login-subtitle">Inserisci i parametri di connessione per continuare</p>
+
+    <!-- Alert area -->
+    <div id="login-alert" class="hidden" role="alert"></div>
+
+    <form id="login-form" novalidate>
+      <div class="field-group">
+
+        <!-- App Server -->
+        <div class="field">
+          <label for="appServer">App Server</label>
+          <input
+            id="appServer"
+            type="text"
+            placeholder="es. ssc-test.kering.com"
+            value="ssc-test.kering.com"
+            autocomplete="off"
+            required
+          />
+        </div>
+
+        <!-- Component ID -->
+        <div class="field">
+          <label for="componentId">Component ID</label>
+          <input
+            id="componentId"
+            type="text"
+            placeholder="es. brk"
+            value="brk"
+            autocomplete="off"
+            required
+          />
+        </div>
+
+        <!-- Service Username -->
+        <div class="field">
+          <label for="serviceUsername">Service Username</label>
+          <input
+            id="serviceUsername"
+            type="text"
+            placeholder="es. SSC.DEFAULT@SERVICE"
+            value="SSC.DEFAULT@SERVICE"
+            autocomplete="off"
+          />
+        </div>
+
+      </div>
+
+      <!-- Advanced section -->
+      <div class="advanced-toggle" id="advanced-toggle" role="button" tabindex="0" aria-expanded="false">
+        <span class="chevron">▶</span>
+        <span>Opzioni avanzate</span>
+      </div>
+      <div class="advanced-panel" id="advanced-panel" aria-hidden="true">
+        <div class="field-group">
+          <div class="field">
+            <label for="componentPassword">Component Password</label>
+            <input id="componentPassword" type="password" value="acm" placeholder="acm" />
+          </div>
+          <div class="field">
+            <label for="acmDllPath">Percorso DLL ACM</label>
+            <input
+              id="acmDllPath"
+              type="text"
+              value="C:\sedApta\Shared\ACM\Client\Sedapta.ACM.Client.dll"
+              placeholder="C:\sedApta\Shared\ACM\Client\Sedapta.ACM.Client.dll"
+            />
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" id="btn-login" class="btn btn-connect" aria-label="Connetti">
+        <span id="btn-login-text">🔗 Connetti</span>
+        <span id="btn-login-spinner" class="hidden">
+          <span class="spinner" style="width:18px;height:18px;border-width:2px;"></span>
+        </span>
+      </button>
+
+    </form>
+
+    <div class="separator"></div>
+    <p style="text-align:center;font-size:11px;color:var(--text-muted);">
+      SedApta Company Chart Frontend &nbsp;·&nbsp; v1.0.0
+    </p>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container" aria-live="polite"></div>
+
+<script>
+// ── Advanced panel toggle ──────────────────────────────────
+const toggle = document.getElementById('advanced-toggle');
+const panel  = document.getElementById('advanced-panel');
+toggle.addEventListener('click', () => {
+  const isOpen = panel.classList.toggle('open');
+  toggle.classList.toggle('open', isOpen);
+  toggle.setAttribute('aria-expanded', isOpen);
+  panel.setAttribute('aria-hidden', !isOpen);
+});
+toggle.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle.click(); } });
+
+// ── Alert helper ──────────────────────────────────────────
+function showAlert(msg, type = 'error') {
+  const el = document.getElementById('login-alert');
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+function clearAlert() { document.getElementById('login-alert').classList.add('hidden'); }
+
+// ── Form submit ───────────────────────────────────────────
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  clearAlert();
+
+  const appServer         = document.getElementById('appServer').value.trim();
+  const componentId       = document.getElementById('componentId').value.trim();
+  const serviceUsername   = document.getElementById('serviceUsername').value.trim();
+  const componentPassword = document.getElementById('componentPassword').value.trim();
+  const acmDllPath        = document.getElementById('acmDllPath').value.trim();
+
+  if (!appServer)  return showAlert('App Server è obbligatorio.');
+  if (!componentId)return showAlert('Component ID è obbligatorio.');
+
+  const btn        = document.getElementById('btn-login');
+  const btnText    = document.getElementById('btn-login-text');
+  const btnSpinner = document.getElementById('btn-login-spinner');
+  btn.disabled     = true;
+  btnText.classList.add('hidden');
+  btnSpinner.classList.remove('hidden');
+
+  try {
+    const resp = await fetch('/api/login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appServer, componentId, serviceUsername, componentPassword, acmDllPath }),
+    });
+
+    const data = await resp.json();
+
+    if (resp.ok && data.success) {
+      // Persist session info
+      sessionStorage.setItem('cc_token',       data.token);
+      sessionStorage.setItem('cc_appServer',   data.appServer);
+      sessionStorage.setItem('cc_componentId', data.componentId);
+      sessionStorage.setItem('cc_username',    serviceUsername);
+      // Redirect to main app
+      window.location.href = 'app.html';
+    } else {
+      showAlert(data.error || 'Autenticazione fallita. Verifica i parametri.');
+    }
+  } catch (err) {
+    showAlert('Impossibile connettersi al backend. Assicurati che Node.js sia in esecuzione.');
+  } finally {
+    btn.disabled = false;
+    btnText.classList.remove('hidden');
+    btnSpinner.classList.add('hidden');
+  }
+});
+
+// ── Auto-redirect if already logged in ───────────────────
+if (sessionStorage.getItem('cc_token')) {
+  window.location.href = 'app.html';
+}
+</script>
+</body>
+</html>

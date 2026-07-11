@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Company Chart – Gestione Configurazioni</title>
+  <meta name="description" content="SedApta Company Chart Configuration Management Frontend" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="app-layout">
+
+  <!-- ── Top Bar ──────────────────────────────────────── -->
+  <header class="topbar" role="banner">
+    <div class="topbar-logo">
+      <div class="logo-icon" aria-hidden="true">🏢</div>
+      <span>Company Chart</span>
+    </div>
+
+    <div class="topbar-divider" aria-hidden="true"></div>
+
+    <div class="topbar-server flex align-center gap-8">
+      <span class="server-dot" aria-label="Connesso" title="Connesso"></span>
+      <span id="topbar-server">—</span>
+      <span style="color:var(--text-muted)">·</span>
+      <span id="topbar-component" style="color:var(--accent-bright);font-weight:600">—</span>
+    </div>
+
+    <div class="topbar-actions">
+      <button id="btn-refresh" class="btn btn-ghost btn-sm" title="Ricarica gerarchia">⟳ Aggiorna</button>
+      <button id="btn-global-search" class="btn btn-primary btn-sm" style="box-shadow:none" title="Cerca file e widget in tutta la gerarchia">🔍 Cerca Widget</button>
+
+      <div class="topbar-user" aria-label="Utente connesso">
+        <div class="avatar" id="topbar-avatar" aria-hidden="true">U</div>
+        <span id="topbar-user-label" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+      </div>
+
+      <button id="btn-logout" class="btn btn-ghost btn-sm" title="Disconnetti">🚪 Esci</button>
+    </div>
+  </header>
+
+  <!-- ── App Body ──────────────────────────────────────── -->
+  <div class="app-body">
+
+    <!-- ── Sidebar ─────────────────────────────────────── -->
+    <aside class="sidebar" role="navigation" aria-label="Albero Company Chart">
+
+      <div class="sidebar-header">
+        <h2>Struttura</h2>
+        <div class="search-box">
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input
+            id="search-input"
+            type="search"
+            placeholder="Cerca nodo..."
+            aria-label="Cerca nodo"
+          />
+        </div>
+      </div>
+
+      <div class="sidebar-filters">
+        <div id="filter-chips" style="display:flex;gap:6px;flex-wrap:wrap;width:100%">
+          <!-- Populated dynamically -->
+          <button class="filter-chip active" data-level="all">Tutti</button>
+        </div>
+      </div>
+
+      <!-- Expand/Collapse controls -->
+      <div style="display:flex;gap:6px;padding:6px 12px;border-bottom:1px solid var(--border);">
+        <button id="btn-expand-all"   class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">⊞ Espandi</button>
+        <button id="btn-collapse-all" class="btn btn-ghost btn-sm" style="flex:1;font-size:11px">⊟ Comprimi</button>
+      </div>
+
+      <!-- Tree -->
+      <div
+        id="tree-container"
+        class="sidebar-tree"
+        role="tree"
+        aria-label="Albero nodi"
+        aria-live="polite"
+      >
+        <!-- Placeholder while loading -->
+        <div class="empty-state" style="padding:40px 20px;">
+          <div class="spinner"></div>
+          <p class="loading-text" style="margin-top:12px">Caricamento...</p>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ── Main Content ───────────────────────────────── -->
+    <main class="main-content" role="main">
+
+      <!-- Empty / welcome state -->
+      <div id="empty-state" class="empty-state">
+        <div class="empty-icon">🌳</div>
+        <h3>Seleziona un nodo</h3>
+        <p>Fai clic su un nodo nell'albero a sinistra per visualizzare i dettagli, scaricare o confrontare le configurazioni.</p>
+      </div>
+
+      <!-- Node panel (hidden until node selected) -->
+      <div id="node-panel" class="node-panel hidden">
+
+        <!-- Panel header -->
+        <div class="panel-header">
+          <div class="panel-header-info">
+            <h2 id="panel-node-name">—</h2>
+            <div class="meta">
+              <span id="panel-node-level" class="badge badge-level">Livello —</span>
+              <span id="panel-user-count" style="color:var(--text-secondary)">0 utenti</span>
+              <span id="panel-all-count"  style="color:var(--text-muted)">0 totali</span>
+            </div>
+          </div>
+          <div class="panel-header-actions">
+            <button class="btn btn-sm btn-ghost" onclick="viewConfig('','')" id="btn-view-default" title="Visualizza configurazione DEFAULT del nodo">👁 DEFAULT</button>
+            <button class="btn btn-sm btn-success" onclick="downloadDefaultConfig()" id="btn-dl-default" title="Scarica configurazione DEFAULT (userName vuoto)">📥 DEFAULT</button>
+            <button class="btn btn-sm btn-primary" onclick="downloadFullConfigNode()" id="btn-dl-full" title="Scarica configurazione COMPLETA (tutte le cartelle)">📦 FULL</button>
+          </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs" role="tablist">
+          <button class="tab active" role="tab" data-tab="users"   aria-controls="tab-users"   id="tabt-users">👥 Utenti</button>
+          <button class="tab"        role="tab" data-tab="viewer"  aria-controls="tab-viewer"  id="tabt-viewer">📄 Visualizza</button>
+          <button class="tab"        role="tab" data-tab="compare" aria-controls="tab-compare" id="tabt-compare">↔ Confronta</button>
+        </div>
+
+        <!-- Tab: Users ──────────────────────────────────── -->
+        <div id="tab-users" class="tab-content tab-pane active" role="tabpanel" aria-labelledby="tabt-users">
+          <div class="users-toolbar">
+            <span class="users-count">Utenti del componente attivo</span>
+            <button class="btn btn-sm btn-primary" onclick="openAssignUserModal()" title="Aggiungi utente al nodo">＋ Assegna utente</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Username</th>
+                  <th>Componente</th>
+                  <th>Azioni</th>
+                </tr>
+              </thead>
+              <tbody id="users-tbody">
+                <tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:24px">Seleziona un nodo</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tab: Viewer ─────────────────────────────────── -->
+        <div id="tab-viewer" class="tab-content tab-pane" role="tabpanel" aria-labelledby="tabt-viewer">
+
+          <!-- Placeholder -->
+          <div id="viewer-placeholder" class="empty-state" style="padding:40px;">
+            <div class="empty-icon">📄</div>
+            <h3>Nessuna configurazione aperta</h3>
+            <p>Clicca su <strong>👁 Visualizza</strong> accanto a un utente nella scheda Utenti.</p>
+          </div>
+
+          <!-- Content: split layout — left browser, right file content -->
+          <div id="viewer-content" class="hidden" style="display:flex;gap:0;height:100%;min-height:0">
+
+            <!-- Left: file browser -->
+            <div style="width:280px;min-width:220px;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden">
+              <div style="padding:10px;border-bottom:1px solid var(--border);background:var(--surface-raised);flex-shrink:0">
+                <input id="viewer-search" type="text" placeholder="Filtra file..." style="width:100%;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-base);color:var(--text-primary);font-size:12px;outline:none;transition:border-color .15s" />
+              </div>
+              <div id="viewer-file-browser" style="flex:1;overflow-y:auto;padding:8px 0">
+                <!-- populated by viewer.js -->
+              </div>
+            </div>
+
+            <!-- Right: JSON content -->
+            <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+              <div style="padding:8px 16px;border-bottom:1px solid var(--border);background:var(--surface-raised);font-size:12px;color:var(--text-secondary);flex-shrink:0">
+                📄 <span id="viewer-file-title" style="font-weight:600;color:var(--text-accent)">— seleziona un file —</span>
+              </div>
+              <div id="json-viewer-content" class="json-viewer" aria-live="polite" style="flex:1;overflow:auto;margin:0;border-radius:0"></div>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Tab: Compare ────────────────────────────────── -->
+        <div id="tab-compare" class="tab-content tab-pane" role="tabpanel" aria-labelledby="tabt-compare">
+
+          <div class="compare-setup">
+
+            <!-- Left (A) -->
+            <div class="compare-panel-card">
+              <h4>← Lato A (sinistra)</h4>
+              <div class="compare-select">
+                <label for="cmp-nodeA" style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Nodo</label>
+                <select id="cmp-nodeA">
+                  <option value="">— seleziona nodo A —</option>
+                </select>
+                <label for="cmp-userA" style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Utente</label>
+                <select id="cmp-userA">
+                  <option value="">— seleziona utente —</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="compare-vs" aria-hidden="true">VS</div>
+
+            <!-- Right (B) -->
+            <div class="compare-panel-card">
+              <h4>→ Lato B (destra)</h4>
+              <div class="compare-select">
+                <label for="cmp-nodeB" style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Nodo</label>
+                <select id="cmp-nodeB">
+                  <option value="">— seleziona nodo B —</option>
+                </select>
+                <label for="cmp-userB" style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:4px;">Utente</label>
+                <select id="cmp-userB">
+                  <option value="">— seleziona utente —</option>
+                </select>
+              </div>
+            </div>
+
+          </div>
+
+          <div style="text-align:center;margin-bottom:24px;">
+            <button id="btn-run-compare" class="btn btn-primary btn-lg" aria-label="Avvia confronto configurazioni">
+              🔍 Avvia confronto
+            </button>
+          </div>
+
+          <!-- Filter box for comparison results (hidden initially) -->
+          <div id="compare-filter-container" class="hidden" style="margin-bottom:16px;background:var(--surface-raised);padding:10px;border-radius:8px;border:1px solid var(--border)">
+            <input id="compare-filter-input" type="text" placeholder="Filtra file confrontati per nome (es. agent, graph)..." style="width:100%;padding:8px 12px;background:var(--bg-base);border:1px solid var(--border);border-radius:6px;color:#fff;outline:none;font-size:13px;transition:border-color .15s" />
+          </div>
+
+          <!-- Results -->
+          <div id="compare-results" aria-live="polite"></div>
+
+        </div>
+
+      </div><!-- /node-panel -->
+
+      <!-- Global Widget Search Panel -->
+      <div id="widget-search-panel" class="node-panel hidden">
+        <!-- Panel header -->
+        <div class="panel-header">
+          <div class="panel-header-info">
+            <h2>🔍 Ricerca Widget Globale</h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-top:4px;">
+              Cerca file di configurazione con lo stesso nome dislocati nei vari nodi della struttura.
+            </p>
+          </div>
+        </div>
+
+        <div style="padding:20px;background:var(--surface-raised);border-radius:12px;margin:16px;border:1px solid var(--border)">
+          <div style="display:flex;gap:12px;align-items:center">
+            <input id="global-search-input" type="text" placeholder="Es. Agent, BricksDs, demand..." style="flex:1;padding:12px 16px;font-size:15px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;color:#fff;outline:none" />
+            <button id="btn-run-global-search" class="btn btn-primary" style="padding:12px 24px">Cerca</button>
+          </div>
+        </div>
+
+        <div id="global-search-results" style="padding:16px;overflow-y:auto;flex:1">
+          <div class="empty-state">
+            <div class="empty-icon">🔍</div>
+            <h3>Inserisci una parola chiave per avviare la ricerca</h3>
+          </div>
+        </div>
+      </div><!-- /widget-search-panel -->
+
+    </main>
+
+  </div><!-- /app-body -->
+
+</div><!-- /app-layout -->
+
+<!-- ── Modal: Assegna Utente ──────────────────────────────── -->
+<div id="modal-assign-user" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="modal-assign-title">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-assign-title">＋ Assegna Utente al Nodo</h3>
+      <span class="modal-close" onclick="closeAssignUserModal()" aria-label="Chiudi">✕</span>
+    </div>
+    <div class="modal-body">
+      <div id="modal-assign-alert" class="hidden" role="alert"></div>
+      <div class="field-group">
+        <div class="field">
+          <label for="assign-node">Nodo</label>
+          <input id="assign-node" type="text" readonly style="opacity:.6;cursor:not-allowed" />
+        </div>
+        <div class="field">
+          <label for="assign-username">Username da assegnare</label>
+          <input id="assign-username" type="text" placeholder="es. A1580579" autocomplete="off" />
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeAssignUserModal()">Annulla</button>
+      <button class="btn btn-primary" id="btn-confirm-assign" onclick="confirmAssignUser()">✓ Assegna</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container" aria-live="assertive" aria-atomic="true"></div>
+
+<!-- Scripts (order matters: api → tree → viewer → compare → search → app) -->
+<script src="js/api.js"></script>
+<script src="js/tree.js"></script>
+<script src="js/viewer.js"></script>
+<script src="js/compare.js"></script>
+<script src="js/search.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
