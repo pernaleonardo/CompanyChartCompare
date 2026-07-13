@@ -50,14 +50,29 @@
 
       <div class="sidebar-header">
         <h2>Struttura</h2>
-        <div class="search-box">
-          <span class="search-icon" aria-hidden="true">🔍</span>
-          <input
-            id="search-input"
-            type="search"
-            placeholder="Cerca nodo..."
-            aria-label="Cerca nodo"
-          />
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%">
+          <div class="search-box">
+            <span class="search-icon" aria-hidden="true">🔍</span>
+            <input
+              id="search-input"
+              type="search"
+              placeholder="Cerca nodo..."
+              aria-label="Cerca nodo"
+            />
+          </div>
+          <div class="search-box">
+            <span class="search-icon" aria-hidden="true" style="font-size:12px;opacity:0.7">📄</span>
+            <input
+              id="search-file-input"
+              type="search"
+              placeholder="Cerca file nei nodi..."
+              aria-label="Cerca file"
+            />
+          </div>
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-muted); cursor:pointer; margin-top:-2px">
+            <input type="checkbox" id="hide-zero-files-checkbox" checked style="width:12px; height:12px; cursor:pointer;" />
+            Nascondi nodi con 0 file
+          </label>
         </div>
       </div>
 

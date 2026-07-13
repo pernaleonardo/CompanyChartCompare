@@ -9,6 +9,8 @@ const Tree = (() => {
   let _searchQuery  = '';
   let _levelFilter  = null;     // null = all levels
   let _expandedSet  = new Set();// aliasex of expanded nodes
+  let _fileMatchesMap = null;   // null = inactive, {} = alias -> count
+  let _hideZeroFiles  = true;
 
   // ── Level color helpers ──────────────────────────────────
   const LEVEL_COLORS = ['l0','l1','l2','l3','l4'];
@@ -86,16 +88,28 @@ const Tree = (() => {
     const matches = q && alias.toLowerCase().includes(q);
     if (_levelFilter !== null && lv !== _levelFilter && !hasDescendantAtLevel(nodeData, _levelFilter)) return null;
 
+    if (_fileMatchesMap !== null) {
+      const matchCount = _fileMatchesMap[alias] || 0;
+      if (_hideZeroFiles && matchCount === 0 && !hasDescendantWithFileMatch(nodeData)) return null;
+    }
+    
+    const hasFiles = _fileMatchesMap !== null && (_fileMatchesMap[alias] || 0) > 0;
+    const highlightStyle = hasFiles ? 'background: var(--accent-glow); color: var(--accent-bright); padding: 2px 6px; border-radius: 4px; font-weight: 600;' : '';
+
     row.innerHTML = `
       <div class="tree-indent" style="width:${indentPx}px" aria-hidden="true"></div>
       <span class="tree-toggle ${hasKids ? '' : 'invisible'} ${isOpen ? 'open' : ''}" aria-hidden="true">▶</span>
       <span class="node-icon" aria-hidden="true">${levelIcon(lv)}</span>
-      <span class="node-name ${matches ? 'match' : ''}" title="${alias}">${
+      <span class="node-name ${matches ? 'match' : ''}" title="${alias}" style="${highlightStyle}">${
         matches ? alias.replace(new RegExp(`(${escapeRe(q)})`, 'gi'), '<mark style="background:rgba(245,158,11,.25);color:var(--warning)">$1</mark>') : alias
       }</span>
       <span class="node-badges">
         <span class="badge ${levelClass(lv)}" title="Livello ${lv}">L${lv}</span>
-        ${users > 0 ? `<span class="badge badge-users" title="${users} utenti">👥 ${users}</span>` : ''}
+        ${
+          _fileMatchesMap !== null 
+            ? `<span class="badge badge-users" style="background:var(--accent-glow);color:var(--text-accent)" title="${_fileMatchesMap[alias] || 0} file">📄 ${_fileMatchesMap[alias] || 0}</span>`
+            : (users > 0 ? `<span class="badge badge-users" title="${users} utenti">👥 ${users}</span>` : '')
+        }
       </span>
     `;
 
@@ -127,6 +141,14 @@ const Tree = (() => {
     if (nodeLevel(nodeData) === targetLevel) return true;
     if (!nodeData.children) return false;
     return nodeData.children.some(c => hasDescendantAtLevel(c, targetLevel));
+  }
+
+  // ── Check if subtree has file matches ────────────────────
+  function hasDescendantWithFileMatch(nodeData) {
+    if (_fileMatchesMap === null) return true;
+    if (nodeData.node?.alias && (_fileMatchesMap[nodeData.node.alias] || 0) > 0) return true;
+    if (!nodeData.children) return false;
+    return nodeData.children.some(c => hasDescendantWithFileMatch(c));
   }
 
   // ── Recursively render subtree ────────────────────────────
@@ -208,6 +230,17 @@ const Tree = (() => {
     else render();
   }
 
+  function setFileMatches(map) {
+    _fileMatchesMap = map;
+    if (map !== null) expandAll();
+    else render();
+  }
+
+  function setHideZeroFiles(hide) {
+    _hideZeroFiles = hide;
+    render();
+  }
+
   function getData()  { return _data; }
 
   // ── Get distinct levels from hierarchy ───────────────────
@@ -277,7 +310,7 @@ const Tree = (() => {
     return false;
   }
 
-  return { init, render, setSearch, setLevelFilter, expandAll, collapseAll, getData, getLevels, getNodesByLevel, selectNodeByAlias };
+  return { init, render, setSearch, setLevelFilter, setFileMatches, setHideZeroFiles, expandAll, collapseAll, getData, getLevels, getNodesByLevel, selectNodeByAlias };
 
   // ── Util ─────────────────────────────────────────────────
   function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }

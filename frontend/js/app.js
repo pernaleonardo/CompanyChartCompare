@@ -41,6 +41,9 @@ let flatNodesB     = {};     // index of alias -> nodeData for side B
 let compareNodeA   = null;   // left side for compare
 let compareNodeB   = null;   // right side for compare
 
+let currentFileSearchQuery = ''; // current active file search query
+let fileSearchTimeout = null;
+
 // Fallbacks for backward compatibility
 let rawHierarchy   = null;
 let flatNodes      = {};
@@ -97,6 +100,44 @@ async function init() {
 
   // Wire up sidebar controls
   $('search-input').addEventListener('input', e => Tree.setSearch(e.target.value.trim()));
+  
+  const searchFileInput = $('search-file-input');
+  if (searchFileInput) {
+    searchFileInput.addEventListener('input', e => {
+      const q = e.target.value.trim();
+      currentFileSearchQuery = q;
+      
+      if (fileSearchTimeout) clearTimeout(fileSearchTimeout);
+      
+      if (!q) {
+        Tree.setFileMatches(null);
+        return;
+      }
+      
+      fileSearchTimeout = setTimeout(async () => {
+        try {
+          const data = await API.searchWidgets(q, activeSide);
+          const map = {};
+          if (data && data.results) {
+            data.results.forEach(res => {
+              map[res.node] = res.matches ? res.matches.length : 0;
+            });
+          }
+          Tree.setFileMatches(map);
+        } catch (err) {
+          console.error('File search error:', err);
+        }
+      }, 500);
+    });
+  }
+
+  const hideZeroFilesCb = $('hide-zero-files-checkbox');
+  if (hideZeroFilesCb) {
+    hideZeroFilesCb.addEventListener('change', e => {
+      Tree.setHideZeroFiles(e.target.checked);
+    });
+  }
+
   $('btn-expand-all').addEventListener('click',   () => Tree.expandAll());
   $('btn-collapse-all').addEventListener('click', () => Tree.collapseAll());
 
@@ -311,11 +352,15 @@ function showNodePanel(nodeData) {
   $('panel-all-count').textContent  = `${allUsers.length} totali`;
 
   renderUsersTable(users, alias);
-  switchTab('users');
 
-  // Clear viewer and compare when switching node
-  clearViewer();
-  Compare.clear();
+  if (currentFileSearchQuery) {
+    viewConfig('', alias, currentFileSearchQuery);
+    Compare.clear();
+  } else {
+    switchTab('users');
+    clearViewer();
+    Compare.clear();
+  }
 
   // Pre-fill compare node for the active side
   if (activeSide === 'A') {
@@ -366,7 +411,7 @@ function renderUsersTable(users, nodeAlias) {
 }
 
 // ── View config ───────────────────────────────────────────
-async function viewConfig(userName, nodeAlias) {
+async function viewConfig(userName, nodeAlias, initialFilter = '') {
   if (!nodeAlias && currentNode) nodeAlias = currentNode.node?.alias;
   if (!nodeAlias) return;
 
@@ -377,7 +422,7 @@ async function viewConfig(userName, nodeAlias) {
   contentEl.classList.remove('hidden');
   contentEl.style.display = 'flex';
 
-  Viewer.show(nodeAlias, userName || '', activeSide);
+  Viewer.show(nodeAlias, userName || '', activeSide, initialFilter);
 }
 
 // ── Download config ───────────────────────────────────────

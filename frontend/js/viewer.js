@@ -76,7 +76,7 @@ const Viewer = (() => {
       // Default expand presentation root folders if available
       _expanded.add('Presentation');
 
-      renderTree();
+      renderTree(_currentFilter);
     } catch (err) {
       container.innerHTML = `<div class="alert alert-error" style="margin:16px">Errore: ${escapeHtml(err.message)}</div>`;
     }
@@ -266,7 +266,7 @@ const Viewer = (() => {
   }
 
   // ── Public: Initialize ───────────────────────────────────
-  function show(nodeAlias, userName = '', side = 'A') {
+  function show(nodeAlias, userName = '', side = 'A', initialFilter = '') {
     _node     = nodeAlias;
     _user     = userName;
     _side     = side;
@@ -276,8 +276,9 @@ const Viewer = (() => {
     // Reset search filter input value
     const searchInput = document.getElementById('viewer-search');
     if (searchInput) {
-      searchInput.value = '';
+      searchInput.value = initialFilter;
     }
+    _currentFilter = initialFilter;
 
     loadNodes();
   }
