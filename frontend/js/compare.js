@@ -337,6 +337,9 @@ const Compare = (() => {
             <div class="diff-file-header" data-idx="${currentIdx}">
               <span class="diff-file-name">📄 ${escapeHtml(f.file)}</span>
               <span class="diff-status ${f.status}">${statusLabel(f.status)}</span>
+              ${f.status === 'modified' ? `<button class="btn btn-sm btn-action align-btn" style="margin-left:8px; padding: 2px 8px; font-size: 11px;" data-file="${escapeHtml(f.file)}" onclick="Compare.handleAction(event, 'align', this)">Allinea</button>` : ''}
+              ${f.status === 'removed' ? `<button class="btn btn-sm btn-action release-btn" style="margin-left:8px; padding: 2px 8px; font-size: 11px;" data-file="${escapeHtml(f.file)}" onclick="Compare.handleAction(event, 'release', this)">Rilascia</button>` : ''}
+              ${f.status === 'added' ? `<button class="btn btn-sm btn-action remove-btn" style="margin-left:8px; padding: 2px 8px; font-size: 11px;" data-file="${escapeHtml(f.file)}" onclick="Compare.handleAction(event, 'remove', this)">Rimuovi</button>` : ''}
               <span class="diff-arrow" style="color:var(--text-muted);font-size:11px;margin-left:auto;width:12px;text-align:center">▼</span>
             </div>
             <div class="diff-content" id="diff-content-${currentIdx}">
@@ -369,9 +372,22 @@ const Compare = (() => {
         const content = document.getElementById(`diff-content-${idx}`);
         const isOpen  = content.classList.toggle('open');
         const arrow   = header.querySelector('.diff-arrow');
-        if (arrow) arrow.textContent = isOpen ? '▲' : '▼';
       });
     });
+
+    const searchUi = document.getElementById('compare-text-search-ui');
+    if (searchUi) searchUi.classList.remove('hidden');
+
+    _textSearch = new TextSearch(container);
+    const searchInput = document.getElementById('compare-text-search-input');
+    const countEl = document.getElementById('compare-text-search-count');
+    if (searchInput && searchInput.value) {
+      _textSearch.search(searchInput.value);
+    }
+    if (countEl) {
+      if (_textSearch.matches.length === 0) countEl.textContent = '0/0';
+      else countEl.textContent = `${_textSearch.currentIndex + 1}/${_textSearch.matches.length}`;
+    }
   }
 
   function statusLabel(s) {
@@ -715,11 +731,165 @@ const Compare = (() => {
     }
   }
 
+  function initTextSearch() {
+    const searchInput = document.getElementById('compare-text-search-input');
+    const prevBtn = document.getElementById('compare-text-search-prev');
+    const nextBtn = document.getElementById('compare-text-search-next');
+    const countEl = document.getElementById('compare-text-search-count');
+
+    function updateSearchCount() {
+      if (!_textSearch) return;
+      if (_textSearch.matches.length === 0) {
+        countEl.textContent = '0/0';
+      } else {
+        countEl.textContent = `${_textSearch.currentIndex + 1}/${_textSearch.matches.length}`;
+      }
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('input', e => {
+        if (_textSearch) {
+          _textSearch.search(e.target.value);
+          updateSearchCount();
+        }
+      });
+      searchInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (e.shiftKey) _textSearch?.prev();
+          else _textSearch?.next();
+          updateSearchCount();
+        }
+      });
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        _textSearch?.prev();
+        updateSearchCount();
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        _textSearch?.next();
+        updateSearchCount();
+      });
+    }
+  }
+
+  async function handleAction(event, action, btnEl) {
+    event.stopPropagation();
+    try {
+      console.log('handleAction started:', action, btnEl.getAttribute('data-file'));
+      const fileKey = btnEl.getAttribute('data-file');
+      const f = _lastData.files.find(x => x.file === fileKey);
+      if (!f) {
+        Toast.error("Impossibile trovare il file nei dati in memoria.");
+        return;
+      }
+      
+      const right = _lastData.right;
+      
+      let subPath = '';
+      let fileName = f.file;
+      if (f.file.includes('\\')) {
+        subPath = f.file.substring(0, f.file.lastIndexOf('\\'));
+        fileName = f.file.substring(f.file.lastIndexOf('\\') + 1);
+      } else if (f.file.includes('/')) {
+        subPath = f.file.substring(0, f.file.lastIndexOf('/'));
+        fileName = f.file.substring(f.file.lastIndexOf('/') + 1);
+      }
+
+      if (action === 'align' || action === 'release') {
+        let content = f.contentA;
+        if (!content) {
+          Toast.error("Contenuto sorgente assente.");
+          return;
+        }
+
+        const rightServer = _lastData.right.appServer;
+        console.log('Checking for URLs. rightServer:', rightServer);
+        
+        // Trova domini da URL http/https presenti nel file
+        const urlRegex = /https?:\/\/([^/"'\\>\s?#]+)/gi;
+        const matches = [...content.matchAll(urlRegex)];
+        console.log('Regex matches:', matches.length);
+        
+        if (matches.length > 0 && rightServer) {
+          const uniqueDomains = [...new Set(matches.map(m => m[1]))];
+          const ignoreList = ['w3.org', 'json-schema.org', 'schemas.microsoft.com'];
+          
+          const domainsToReplace = uniqueDomains.filter(d => {
+            const dl = d.toLowerCase();
+            return !ignoreList.some(ignore => dl.includes(ignore));
+          });
+
+          console.log('Domains to replace:', domainsToReplace);
+
+          if (domainsToReplace.length > 0) {
+            const confirmMsg = `Nel file sono stati individuati indirizzi HTTP/HTTPS con i seguenti domini:\n`
+              + domainsToReplace.map(d => `- ${d}`).join('\n')
+              + `\n\nVuoi sostituirli con l'indirizzo di destinazione (${rightServer}) prima di procedere?`;
+              
+            if (confirm(confirmMsg)) {
+              domainsToReplace.forEach(domain => {
+                content = content.replaceAll(domain, rightServer);
+              });
+            }
+          }
+        }
+        
+        try {
+          const originalText = btnEl.textContent;
+          btnEl.textContent = '⏳...';
+          btnEl.disabled = true;
+
+          console.log('Starting upload...');
+          await API.uploadFile(content, fileName, subPath, right.node, right.user, 'B');
+          console.log('Upload completed');
+          
+          btnEl.textContent = '✓ Fatto';
+          btnEl.classList.remove('btn-ghost');
+          btnEl.style.backgroundColor = 'var(--success)';
+          btnEl.style.color = 'white';
+          btnEl.style.borderColor = 'var(--success)';
+        } catch (e) {
+          Toast.error("Errore durante l'upload: " + e.message);
+          btnEl.textContent = "Errore";
+          btnEl.disabled = false;
+        }
+      } else if (action === 'remove') {
+        try {
+          const originalText = btnEl.textContent;
+          btnEl.textContent = '⏳...';
+          btnEl.disabled = true;
+
+          await API.removeFile(fileName, subPath, right.node, right.user, 'B');
+          
+          btnEl.textContent = '✓ Rimosso';
+          btnEl.classList.remove('btn-ghost');
+          btnEl.style.backgroundColor = 'var(--success)';
+          btnEl.style.color = 'white';
+          btnEl.style.borderColor = 'var(--success)';
+        } catch (e) {
+          Toast.error("Errore durante la rimozione: " + e.message);
+          btnEl.textContent = "Errore";
+          btnEl.disabled = false;
+        }
+      }
+    } catch (unexpectedError) {
+      console.error('Unexpected error in handleAction:', unexpectedError);
+      Toast.error("Errore imprevisto nel rilascio: " + unexpectedError.message);
+    }
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initExclusionsModal();
     initContextMenu();
     initNextDiffButton();
+    initTextSearch();
   });
 
-  return { render, clear, removeExclusionRule };
+  return { render, clear, removeExclusionRule, handleAction };
 })();

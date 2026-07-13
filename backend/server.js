@@ -692,6 +692,91 @@ app.get('/api/config/search-widgets', async (req, res) => {
     }
 });
 
+// ─── POST /api/config/upload ──────────────────────────────────────────────────
+// Uploads a configuration file to the CompanyChart API
+app.post('/api/config/upload', async (req, res) => {
+    const appServer = req.headers['x-app-server'];
+    const { componentId, userContext, userName, subPath, fileName, content } = req.body;
+    
+    if (!appServer || !componentId || !userContext || !fileName || content === undefined) {
+        return res.status(400).json({ error: 'Missing required params' });
+    }
+    
+    try {
+        const url = `https://${appServer}/CompanyChart/api/v1/ConfigurationManagement/setConfigurationByUpload`
+            + `?componentId=${encodeURIComponent(componentId)}`
+            + `&userName=${encodeURIComponent(userName || '')}`
+            + `&userContext=${encodeURIComponent(userContext)}`
+            + `&subPath=${encodeURIComponent(subPath || '')}`
+            + `&validateEncoding=true&forceEncoding=false`;
+
+        // Manual multipart/form-data construction for maximum compatibility
+        const boundary = `----FormBoundary${Math.random().toString(36).substring(2)}`;
+        const payload = Buffer.concat([
+            Buffer.from(`--${boundary}\r\n`),
+            Buffer.from(`Content-Disposition: form-data; name="files"; filename="${fileName}"\r\n`),
+            Buffer.from(`Content-Type: application/octet-stream\r\n\r\n`),
+            Buffer.from(content, 'utf8'),
+            Buffer.from(`\r\n--${boundary}--\r\n`)
+        ]);
+
+        const response = await axios.post(url, payload, {
+            headers: {
+                ...ccHeaders(req),
+                'Content-Type': `multipart/form-data; boundary=${boundary}`,
+                'origin': `https://${appServer}`,
+            },
+            httpsAgent,
+        });
+
+        console.log(`[config/upload] OK  user=${userName}  node=${userContext} file=${fileName}`);
+        res.json({ success: true, data: response.data });
+    } catch (err) {
+        console.error('[config/upload] error:', err.message);
+        res.status(err.response?.status || 500).json({ error: err.message, details: err.response?.data });
+    }
+});
+
+// ─── POST /api/config/remove ──────────────────────────────────────────────────
+// Deletes a configuration file from the CompanyChart API
+app.post('/api/config/remove', async (req, res) => {
+    const appServer = req.headers['x-app-server'];
+    const { componentId, userContext, userName, subPath, fileName } = req.body;
+    
+    if (!appServer || !componentId || !userContext || !fileName) {
+        return res.status(400).json({ error: 'Missing required params' });
+    }
+    
+    try {
+        const url = `https://${appServer}/CompanyChart/api/v1/ConfigurationManagement/deleteConfigurations`
+            + `?componentId=${encodeURIComponent(componentId)}`
+            + `&userName=${encodeURIComponent(userName || '')}`
+            + `&userContext=${encodeURIComponent(userContext)}`;
+
+        const payload = [
+            {
+                configurationId: fileName,
+                subPath: subPath === 'none' || !subPath ? '' : subPath
+            }
+        ];
+
+        const response = await axios.post(url, payload, {
+            headers: {
+                ...ccHeaders(req),
+                'Content-Type': 'application/json',
+                'origin': `https://${appServer}`,
+            },
+            httpsAgent,
+        });
+
+        console.log(`[config/remove] OK  user=${userName}  node=${userContext} file=${fileName}`);
+        res.json({ success: true, data: response.data });
+    } catch (err) {
+        console.error('[config/remove] error:', err.message);
+        res.status(err.response?.status || 500).json({ error: err.message, details: err.response?.data });
+    }
+});
+
 // ─── Fallback: serve app.html for any unknown route ───────────────────────────
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html'));

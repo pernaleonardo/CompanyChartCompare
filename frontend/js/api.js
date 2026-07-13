@@ -337,6 +337,43 @@ const API = (() => {
     return resp.json();
   }
 
-  return { session, getHierarchy, downloadConfig, previewConfig, compareConfigs, assignUser, removeUser, bulkDownload, downloadSingleFile, getConfigurationNodes, downloadFullConfig, getNodeHierarchy, searchWidgets, downloadFileDirectly };
+  /**
+   * Upload a configuration file to the backend
+   */
+  async function uploadFile(content, fileName, subPath, userContext, userName, side = 'B') {
+    const { componentId } = session(side);
+    const resp = await request(`/api/config/upload`, {
+      method: 'POST',
+      body: JSON.stringify({
+        componentId,
+        userContext,
+        userName,
+        subPath,
+        fileName,
+        content
+      })
+    }, side);
+    return resp.json();
+  }
+
+  /**
+   * Remove a configuration file from the backend
+   */
+  async function removeFile(fileName, subPath, userContext, userName, side = 'B') {
+    const { componentId } = session(side);
+    const resp = await request(`/api/config/remove`, {
+      method: 'POST',
+      body: JSON.stringify({
+        componentId,
+        userContext,
+        userName,
+        subPath,
+        fileName
+      })
+    }, side);
+    return resp.json();
+  }
+
+  return { session, getHierarchy, downloadConfig, previewConfig, compareConfigs, assignUser, removeUser, bulkDownload, downloadSingleFile, getConfigurationNodes, downloadFullConfig, getNodeHierarchy, searchWidgets, downloadFileDirectly, uploadFile, removeFile };
 })();
 

@@ -33,7 +33,6 @@
 
     <form id="login-form" novalidate>
       <div class="field-group">
-
         <!-- Profile A Selector -->
         <div class="field" style="grid-column: span 2;">
           <label for="profile-select-A" style="display:flex; justify-content:space-between; align-items:center;">
@@ -47,57 +46,6 @@
             <option value="">— seleziona profilo —</option>
           </select>
         </div>
-
-        <!-- App Server -->
-        <div class="field">
-          <label for="appServer">App Server</label>
-          <input
-            id="appServer"
-            type="text"
-            placeholder="es. ssc-test.kering.com"
-            value="ssc-test.kering.com"
-            autocomplete="off"
-            required
-          />
-        </div>
-
-        <!-- Component ID -->
-        <div class="field">
-          <label for="componentId">Component ID</label>
-          <input
-            id="componentId"
-            type="text"
-            placeholder="es. brk"
-            value="brk"
-            autocomplete="off"
-            required
-          />
-        </div>
-
-        <!-- Service Username -->
-        <div class="field">
-          <label for="serviceUsername">Service Username</label>
-          <input
-            id="serviceUsername"
-            type="text"
-            placeholder="es. SSC.DEFAULT@SERVICE"
-            value="SSC.DEFAULT@SERVICE"
-            autocomplete="off"
-          />
-        </div>
-
-        <!-- Colore Tema A -->
-        <div class="field">
-          <label for="themeColor">Colore Tema</label>
-          <select id="themeColor" style="background:var(--bg-base); border:1px solid var(--border); border-radius:6px; color:#fff; padding:8px 12px; outline:none; font-size:13px; cursor:pointer;">
-            <option value="#3d7fff" selected>🔵 Blu (Default)</option>
-            <option value="#a855f7">🟣 Viola</option>
-            <option value="#10b981">🟢 Verde</option>
-            <option value="#f97316">🟠 Arancione</option>
-            <option value="#ef4444">🔴 Rosso</option>
-          </select>
-        </div>
-
       </div>
 
       <!-- Enable Environment B Checkbox -->
@@ -106,9 +54,113 @@
         <label for="enable-env-B" style="cursor: pointer; font-weight: 500; font-size: 13px; color: var(--text-secondary);">Connetti secondo ambiente (per confronto multi-ambiente)</label>
       </div>
 
-      <!-- Environment B Fields (hidden by default) -->
-      <div id="env-B-fields" class="hidden" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);">
-        <p class="login-subtitle" style="margin-bottom: 12px; font-weight: 600; color: var(--accent-bright);">Parametri Ambiente B (Destinazione)</p>
+      <!-- Environment B Profile (hidden by default) -->
+      <div id="env-B-profile" class="hidden" style="margin-top: 12px; margin-bottom: 16px;">
+        <div class="field-group">
+          <!-- Profile B Selector -->
+          <div class="field" style="grid-column: span 2;">
+            <label for="profile-select-B" style="display:flex; justify-content:space-between; align-items:center;">
+              <span>Profilo Ambiente B (Destinazione)</span>
+              <div style="display:flex; gap:8px;">
+                <span id="btn-save-profile-B" style="font-size:11px; color:var(--accent-bright); cursor:pointer;" role="button">💾 Salva Corrente</span>
+                <span id="btn-delete-profile-B" style="font-size:11px; color:var(--danger); cursor:pointer;" class="hidden" role="button">🗑️ Rimuovi</span>
+              </div>
+            </label>
+            <select id="profile-select-B" style="width:100%; background:var(--bg-base); border:1px solid var(--border); border-radius:6px; padding:8px 12px; color:#fff; font-size:13px; outline:none; cursor:pointer;">
+              <option value="">— seleziona profilo —</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Advanced section -->
+      <div class="advanced-toggle" id="advanced-toggle" role="button" tabindex="0" aria-expanded="false" style="margin-top:16px;">
+        <span class="chevron">▶</span>
+        <span>Opzioni avanzate</span>
+      </div>
+      <div class="advanced-panel" id="advanced-panel" aria-hidden="true">
+        
+        <div class="field-group">
+          <div class="field" style="grid-column: span 2;">
+            <p style="font-size:12px; color:var(--text-muted); margin-top:-4px; margin-bottom:8px;">Modifica i parametri del profilo corrente o inseriscine di nuovi per crearne uno (clicca su <strong>💾 Salva Corrente</strong> nei profili per memorizzarlo).</p>
+          </div>
+          <!-- App Server -->
+          <div class="field" style="grid-column: span 2;">
+            <label for="appServer">App Server A</label>
+            <input
+              id="appServer"
+              type="text"
+              placeholder="es. ssc-test.kering.com"
+              value="ssc-test.kering.com"
+              autocomplete="off"
+              required
+            />
+          </div>
+
+          <!-- Component ID -->
+          <div class="field">
+            <label for="componentId">Component ID</label>
+            <input
+              id="componentId"
+              type="text"
+              placeholder="es. brk"
+              value="brk"
+              autocomplete="off"
+              required
+            />
+          </div>
+
+          <!-- Service Username -->
+          <div class="field">
+            <label for="serviceUsername">Service Username</label>
+            <input
+              id="serviceUsername"
+              type="text"
+              placeholder="es. SSC.DEFAULT@SERVICE"
+              value="SSC.DEFAULT@SERVICE"
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- Colore Tema A -->
+          <div class="field">
+            <label for="themeColor">Colore Tema</label>
+            <select id="themeColor" style="background:var(--bg-base); border:1px solid var(--border); border-radius:6px; color:#fff; padding:8px 12px; outline:none; font-size:13px; cursor:pointer;">
+              <option value="#3d7fff" selected>🔵 Blu (Default)</option>
+              <option value="#a855f7">🟣 Viola</option>
+              <option value="#10b981">🟢 Verde</option>
+              <option value="#f97316">🟠 Arancione</option>
+              <option value="#ef4444">🔴 Rosso</option>
+            </select>
+          </div>
+
+          <!-- Component Password -->
+          <div class="field">
+            <label for="componentPassword">Component Password</label>
+            <input id="componentPassword" type="password" value="acm" placeholder="acm" />
+          </div>
+
+          <!-- Percorso DLL ACM -->
+          <div class="field" style="grid-column: span 2;">
+            <label for="acmDllPath">Percorso DLL ACM</label>
+            <input
+              id="acmDllPath"
+              type="text"
+              value="C:\sedApta\Shared\ACM\Client\Sedapta.ACM.Client.dll"
+              placeholder="C:\sedApta\Shared\ACM\Client\Sedapta.ACM.Client.dll"
+            />
+          </div>
+        </div>
+
+        <!-- Enable Environment B Checkbox -->
+        <div class="checkbox-field" style="margin: 16px 0; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="enable-env-B" style="width: 16px; height: 16px; cursor: pointer;" />
+          <label for="enable-env-B" style="cursor: pointer; font-weight: 500; font-size: 13px; color: var(--text-secondary);">Connetti secondo ambiente (per confronto multi-ambiente)</label>
+        </div>
+
+        <!-- Environment B Fields (hidden by default) -->
+        <div id="env-B-fields" class="hidden" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);">
+          <p class="login-subtitle" style="margin-bottom: 12px; font-weight: 600; color: var(--accent-bright);">Parametri Ambiente B (Destinazione)</p>
         <div class="field-group">
 
           <!-- Profile B Selector -->
@@ -179,28 +231,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Advanced section -->
-      <div class="advanced-toggle" id="advanced-toggle" role="button" tabindex="0" aria-expanded="false">
-        <span class="chevron">▶</span>
-        <span>Opzioni avanzate</span>
-      </div>
-      <div class="advanced-panel" id="advanced-panel" aria-hidden="true">
-        <div class="field-group">
-          <div class="field">
-            <label for="componentPassword">Component Password</label>
-            <input id="componentPassword" type="password" value="acm" placeholder="acm" />
-          </div>
-          <div class="field">
-            <label for="acmDllPath">Percorso DLL ACM</label>
-            <input
-              id="acmDllPath"
-              type="text"
-              value="C:\sedApta\Shared\ACM\Client\Sedapta.ACM.Client.dll"
-              placeholder="C:\sedApta\Shared\ACM\Client\Sedapta.ACM.Client.dll"
-            />
-          </div>
-        </div>
       </div>
 
       <button type="submit" id="btn-login" class="btn btn-connect" aria-label="Connetti">
@@ -279,11 +309,14 @@ toggle.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' '
 // Toggle Environment B fields visibility
 const enableEnvBCheckbox = document.getElementById('enable-env-B');
 const envBFields = document.getElementById('env-B-fields');
+const envBProfile = document.getElementById('env-B-profile');
 enableEnvBCheckbox.addEventListener('change', () => {
   if (enableEnvBCheckbox.checked) {
     envBFields.classList.remove('hidden');
+    if (envBProfile) envBProfile.classList.remove('hidden');
   } else {
     envBFields.classList.add('hidden');
+    if (envBProfile) envBProfile.classList.add('hidden');
   }
 });
 

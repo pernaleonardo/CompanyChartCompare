@@ -8,9 +8,10 @@ const Viewer = (() => {
   let _node       = '';
   let _user       = '';
   let _side       = 'A';  // environment side ('A' or 'B')
-  let _allFiles   = [];  // flat list of entries from getConfigurationNodes
   let _expanded   = new Set(); // set of open folder paths (to preserve open/close state on filter)
   let _currentFilter = '';
+
+  let _textSearch = null; // instance of TextSearch
 
   // ── Syntax highlight a JSON string ───────────────────────
   function highlight(jsonString) {
@@ -139,10 +140,13 @@ const Viewer = (() => {
       const dataId = filename;
 
       return `
-        <div class="fb-entry fb-file" data-id="${escapeHtml(dataId)}" data-path="${escapeHtml(subPath)}" data-name="${escapedName}" style="padding-left: ${depth * 14 + 12}px">
-          <span class="fb-icon">${icon}</span>
-          <span class="fb-name" title="${escapedName}">${escapedName}</span>
-          <button class="btn btn-sm btn-ghost fb-dl-btn" data-id="${escapeHtml(dataId)}" data-path="${escapeHtml(subPath)}" title="Scarica file">⬇</button>
+        <div class="fb-entry fb-file" data-id="${escapeHtml(dataId)}" data-path="${escapeHtml(subPath)}" data-name="${escapedName}" style="padding-left: ${depth * 14 + 12}px; align-items: center;">
+          <span class="fb-icon" style="flex-shrink:0; margin-top:2px; align-self:flex-start;">${icon}</span>
+          <div style="display:flex; flex-direction:column; flex:1; min-width:0; line-height:1.3; gap:2px;">
+            <span class="fb-name" title="${escapedName}">${escapedName}</span>
+            <span style="font-size:10.5px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" title="${escapeHtml(subPath)}">${subPath ? escapeHtml(subPath) : '\\'}</span>
+          </div>
+          <button class="btn btn-sm btn-ghost fb-dl-btn" data-id="${escapeHtml(dataId)}" data-path="${escapeHtml(subPath)}" title="Scarica file" style="flex-shrink:0">⬇</button>
         </div>
       `;
     }
@@ -227,6 +231,17 @@ const Viewer = (() => {
         file.classList.add('selected');
 
         openFile(file.dataset.id, file.dataset.path, file.dataset.name);
+
+        // Auto-filter left panel by this file's base name
+        const searchFileInput = document.getElementById('search-file-input');
+        if (searchFileInput) {
+          let baseName = file.dataset.name;
+          if (baseName.includes('.')) {
+              baseName = baseName.substring(0, baseName.lastIndexOf('.'));
+          }
+          searchFileInput.value = baseName;
+          searchFileInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
       });
     });
 
@@ -247,10 +262,20 @@ const Viewer = (() => {
 
     if (titleEl) titleEl.textContent = displayName || configurationId;
     contentEl.innerHTML = '<div class="spinner" style="margin:16px auto;display:block"></div>';
-
     try {
       const data = await API.downloadSingleFile(_node, subPath, configurationId, _user, _side);
       contentEl.innerHTML = highlight(data.content);
+      
+      const searchUi = document.getElementById('viewer-text-search-ui');
+      if (searchUi) searchUi.classList.remove('hidden');
+
+      // Re-init TextSearch
+      _textSearch = new TextSearch(contentEl);
+      const searchInput = document.getElementById('viewer-text-search-input');
+      const countEl = document.getElementById('viewer-text-search-count');
+      if (searchInput) searchInput.value = '';
+      if (countEl) countEl.textContent = '0/0';
+
     } catch (err) {
       contentEl.innerHTML = `<div class="alert alert-error">Errore apertura file: ${escapeHtml(err.message)}</div>`;
     }
@@ -288,6 +313,51 @@ const Viewer = (() => {
     document.getElementById('viewer-search')?.addEventListener('input', e => {
       renderTree(e.target.value);
     });
+
+    const searchInput = document.getElementById('viewer-text-search-input');
+    const prevBtn = document.getElementById('viewer-text-search-prev');
+    const nextBtn = document.getElementById('viewer-text-search-next');
+    const countEl = document.getElementById('viewer-text-search-count');
+
+    function updateSearchCount() {
+      if (!_textSearch) return;
+      if (_textSearch.matches.length === 0) {
+        countEl.textContent = '0/0';
+      } else {
+        countEl.textContent = `${_textSearch.currentIndex + 1}/${_textSearch.matches.length}`;
+      }
+    }
+
+    if (searchInput) {
+      searchInput.addEventListener('input', e => {
+        if (_textSearch) {
+          _textSearch.search(e.target.value);
+          updateSearchCount();
+        }
+      });
+      searchInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (e.shiftKey) _textSearch?.prev();
+          else _textSearch?.next();
+          updateSearchCount();
+        }
+      });
+    }
+
+    if (prevBtn) {
+      prevBtn.addEventListener('click', () => {
+        _textSearch?.prev();
+        updateSearchCount();
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', () => {
+        _textSearch?.next();
+        updateSearchCount();
+      });
+    }
   });
 
   // ── Helpers ───────────────────────────────────────────────
