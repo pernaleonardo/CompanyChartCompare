@@ -816,6 +816,8 @@ const Compare = (() => {
         const matches = [...content.matchAll(urlRegex)];
         console.log('Regex matches:', matches.length);
         
+        let urlReplaced = false;
+        
         if (matches.length > 0 && rightServer) {
           const uniqueDomains = [...new Set(matches.map(m => m[1]))];
           const ignoreList = ['w3.org', 'json-schema.org', 'schemas.microsoft.com'];
@@ -828,14 +830,21 @@ const Compare = (() => {
           console.log('Domains to replace:', domainsToReplace);
 
           if (domainsToReplace.length > 0) {
-            const confirmMsg = `Nel file sono stati individuati indirizzi HTTP/HTTPS con i seguenti domini:\n`
-              + domainsToReplace.map(d => `- ${d}`).join('\n')
-              + `\n\nVuoi sostituirli con l'indirizzo di destinazione (${rightServer}) prima di procedere?`;
+            const autoReplace = document.getElementById('compare-auto-replace-url')?.checked;
+            let doReplace = autoReplace;
+
+            if (!autoReplace) {
+              const confirmMsg = `Nel file sono stati individuati indirizzi HTTP/HTTPS con i seguenti domini:\n`
+                + domainsToReplace.map(d => `- ${d}`).join('\n')
+                + `\n\nVuoi sostituirli con l'indirizzo di destinazione (${rightServer}) prima di procedere?`;
+              doReplace = confirm(confirmMsg);
+            }
               
-            if (confirm(confirmMsg)) {
+            if (doReplace) {
               domainsToReplace.forEach(domain => {
                 content = content.replaceAll(domain, rightServer);
               });
+              urlReplaced = true;
             }
           }
         }
@@ -849,7 +858,7 @@ const Compare = (() => {
           await API.uploadFile(content, fileName, subPath, right.node, right.user, 'B');
           console.log('Upload completed');
           
-          btnEl.textContent = '✓ Fatto';
+          btnEl.textContent = urlReplaced ? '✓ Fatto (URL agg.)' : '✓ Fatto';
           btnEl.classList.remove('btn-ghost');
           btnEl.style.backgroundColor = 'var(--success)';
           btnEl.style.color = 'white';
