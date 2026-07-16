@@ -269,7 +269,10 @@
 
           <!-- Filter box for comparison results (hidden initially) -->
           <div id="compare-filter-container" class="hidden" style="margin-bottom:16px;background:var(--surface-raised);padding:10px;border-radius:8px;border:1px solid var(--border);display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-            <input id="compare-filter-input" type="text" placeholder="Filtra file confrontati per nome (es. agent, graph)..." style="flex:1;min-width:200px;padding:8px 12px;background:var(--bg-base);border:1px solid var(--border);border-radius:6px;color:#fff;outline:none;font-size:13px;transition:border-color .15s" />
+            <div style="display:flex; flex:1; min-width:200px; gap:8px;">
+              <input id="compare-filter-input" type="text" placeholder="Filtra file confrontati per nome (es. agent, graph)..." style="flex:1;padding:8px 12px;background:var(--bg-base);border:1px solid var(--border);border-radius:6px;color:#fff;outline:none;font-size:13px;transition:border-color .15s" />
+              <button id="btn-apply-compare-filter" class="btn btn-primary btn-sm" style="padding: 0 12px;">Applica</button>
+            </div>
             <div style="display:flex;align-items:center;gap:8px;font-size:13px;flex-shrink:0">
               <label for="compare-group-select" style="color:var(--text-muted)">Raggruppa per:</label>
               <select id="compare-group-select" style="background:var(--bg-base);border:1px solid var(--border);border-radius:6px;color:#fff;padding:8px 12px;outline:none;font-size:13px;cursor:pointer">
@@ -387,8 +390,8 @@
         <h4 style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase;">Aggiungi Regola di Esclusione</h4>
         <div style="display: flex; gap: 8px; align-items: flex-end;">
           <div style="flex: 1;">
-            <label for="excl-filename" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Tipo/Nome File (es. agent.json)</label>
-            <input type="text" id="excl-filename" placeholder="agent.json" style="width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; color: #fff; font-size: 13px; outline: none;" />
+            <label for="excl-filename" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Tipo/Nome File (es. agent.json, oppure * per tutti)</label>
+            <input type="text" id="excl-filename" placeholder="agent.json oppure *" style="width: 100%; background: var(--bg-base); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px 10px; color: #fff; font-size: 13px; outline: none;" />
           </div>
           <div style="flex: 1;">
             <label for="excl-property" style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Proprietà/Tag (es. appServer)</label>

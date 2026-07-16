@@ -473,6 +473,15 @@ async function runCompare() {
   try {
     const data = await API.compareConfigs(userA, nodeA, userB, nodeB);
     Compare.render(data);
+    
+    const searchFileInput = $('search-file-input');
+    const compareFilterInput = $('compare-filter-input');
+    const btnApplyFilter = $('btn-apply-compare-filter');
+    if (searchFileInput && searchFileInput.value && compareFilterInput) {
+      compareFilterInput.value = searchFileInput.value;
+      if (btnApplyFilter) btnApplyFilter.click();
+    }
+
     Toast.success('Confronto completato');
   } catch (err) {
     Toast.error('Errore confronto: ' + err.message);

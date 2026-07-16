@@ -110,7 +110,10 @@ const Compare = (() => {
       let parsed = JSON.parse(clean);
       if (_exclusionsEnabled) {
         const baseName = getBaseName(filename);
-        const keysToIgnore = _exclusions[baseName] || [];
+        const keysToIgnore = [
+          ...(_exclusions[baseName] || []),
+          ...(_exclusions['*'] || [])
+        ];
         if (keysToIgnore.length > 0) {
           parsed = stripIgnoredKeys(parsed, keysToIgnore);
         }
@@ -176,10 +179,19 @@ const Compare = (() => {
       
       filterContainer.classList.remove('hidden');
       
-      // Bind input listener if not already bound
+      // Bind apply filter logic
       if (filterInput && !filterInput.dataset.bound) {
-        filterInput.addEventListener('input', () => {
-          applyFilterAndGroup(filterInput.value);
+        const btnApply = document.getElementById('btn-apply-compare-filter');
+        if (btnApply) {
+          btnApply.addEventListener('click', () => {
+            applyFilterAndGroup(filterInput.value);
+          });
+        }
+        filterInput.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            applyFilterAndGroup(filterInput.value);
+          }
         });
         filterInput.dataset.bound = 'true';
       }
@@ -439,7 +451,7 @@ const Compare = (() => {
       html += `
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--border);">
           <div style="display: flex; flex-direction: column; gap: 2px;">
-            <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">📄 ${escapeHtml(file)}</span>
+            <span style="font-weight: 600; font-size: 13px; color: var(--text-primary);">${file === '*' ? '📄 Tutti i file (*)' : `📄 ${escapeHtml(file)}`}</span>
             <span style="font-size: 11px; color: var(--text-muted);">Tag esclusi: ${props.map(p => `<strong style="color:var(--text-accent)">${escapeHtml(p)}</strong>`).join(', ')}</span>
           </div>
           <button class="btn btn-sm btn-ghost" onclick="Compare.removeExclusionRule('${escapeHtml(file)}')" title="Rimuovi regola" style="color: var(--danger); font-size:14px; padding:4px 8px;">✕</button>
