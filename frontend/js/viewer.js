@@ -271,7 +271,9 @@ const Viewer = (() => {
     contentEl.innerHTML = '<div class="spinner" style="margin:16px auto;display:block"></div>';
     
     // Hide buttons during load
+    document.getElementById('viewer-btn-preview')?.classList.add('hidden');
     document.getElementById('viewer-btn-edit')?.classList.add('hidden');
+    document.getElementById('viewer-btn-delete')?.classList.add('hidden');
     document.getElementById('viewer-btn-save')?.classList.add('hidden');
     document.getElementById('viewer-btn-cancel')?.classList.add('hidden');
     document.getElementById('viewer-text-search-ui')?.classList.add('hidden');
@@ -287,6 +289,12 @@ const Viewer = (() => {
       if (searchUi) searchUi.classList.remove('hidden');
       
       document.getElementById('viewer-btn-edit')?.classList.remove('hidden');
+      document.getElementById('viewer-btn-delete')?.classList.remove('hidden');
+
+      // Se è un widget graphsettings, mostra il tasto preview
+      if ((subPath && subPath.toLowerCase().includes('graphsettings')) || _currentContent.includes('"Columns"')) {
+        document.getElementById('viewer-btn-preview')?.classList.remove('hidden');
+      }
 
       // Re-init TextSearch
       _textSearch = new TextSearch(contentEl);
@@ -300,9 +308,103 @@ const Viewer = (() => {
     }
   }
 
+  // ── Widget Preview Logic ─────────────────────────────────
+  window.openWidgetPreviewModal = function() {
+    const modal = document.getElementById('widget-preview-modal');
+    const container = document.getElementById('widget-preview-container');
+    const titleEl = document.getElementById('preview-modal-title');
+    if (!modal || !container) return;
+
+    // Reset
+    container.innerHTML = '';
+    titleEl.textContent = 'Anteprima Form: ' + (_currentFileId || 'Sconosciuto');
+
+    try {
+      const config = JSON.parse(_currentContent);
+      if (config.Columns) {
+        // Sort columns by Index if possible, else use keys
+        const columns = Object.values(config.Columns).sort((a, b) => (a.Index || 0) - (b.Index || 0));
+        
+        columns.forEach(col => {
+          if (col.Hidden) return; // Skip hidden columns
+
+          const fieldDiv = document.createElement('div');
+          fieldDiv.className = 'form-group';
+          fieldDiv.style.marginBottom = '12px';
+
+          const label = document.createElement('label');
+          label.textContent = col.HeaderTitle || col.SourceColumnName || 'Senza Nome';
+          label.style.display = 'block';
+          label.style.fontSize = '12px';
+          label.style.color = 'var(--text-secondary)';
+          label.style.marginBottom = '4px';
+          fieldDiv.appendChild(label);
+
+          const type = (col.Validator && col.Validator.Type) ? col.Validator.Type.toLowerCase() : 'string';
+          
+          let input;
+          if (type === 'boolean') {
+            input = document.createElement('input');
+            input.type = 'checkbox';
+          } else if (type === 'int32' || type === 'decimal') {
+            input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'form-control';
+            input.style.width = '100%';
+            input.style.padding = '6px';
+            input.style.border = '1px solid var(--border)';
+            input.style.borderRadius = '4px';
+            input.style.background = 'var(--bg-input)';
+            input.style.color = 'var(--text-primary)';
+          } else if (type === 'datetimeoffset' || type === 'date') {
+            input = document.createElement('input');
+            input.type = 'datetime-local';
+            input.className = 'form-control';
+            input.style.width = '100%';
+            input.style.padding = '6px';
+            input.style.border = '1px solid var(--border)';
+            input.style.borderRadius = '4px';
+            input.style.background = 'var(--bg-input)';
+            input.style.color = 'var(--text-primary)';
+          } else {
+            input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control';
+            input.style.width = '100%';
+            input.style.padding = '6px';
+            input.style.border = '1px solid var(--border)';
+            input.style.borderRadius = '4px';
+            input.style.background = 'var(--bg-input)';
+            input.style.color = 'var(--text-primary)';
+          }
+          
+          fieldDiv.appendChild(input);
+          container.appendChild(fieldDiv);
+        });
+        
+        if (columns.length === 0) {
+          container.innerHTML = '<p style="color:var(--text-muted)">Nessun campo visibile in questo widget.</p>';
+        }
+      } else {
+        container.innerHTML = '<p style="color:var(--text-muted)">Il formato JSON non contiene l\'oggetto "Columns". Impossibile generare l\'anteprima.</p>';
+      }
+    } catch (e) {
+      container.innerHTML = '<p style="color:#ef4444">Errore durante il parsing del widget. Assicurati che il file sia un JSON valido.</p>';
+    }
+
+    modal.classList.remove('hidden');
+  };
+
+  window.closeWidgetPreviewModal = function() {
+    const modal = document.getElementById('widget-preview-modal');
+    if (modal) modal.classList.add('hidden');
+  };
+
   // ── Edit Mode & Save ───────────────────────────────────────
   function setEditMode(edit) {
+    const btnPreview = document.getElementById('viewer-btn-preview');
     const btnEdit = document.getElementById('viewer-btn-edit');
+    const btnDelete = document.getElementById('viewer-btn-delete');
     const btnSave = document.getElementById('viewer-btn-save');
     const btnCancel = document.getElementById('viewer-btn-cancel');
     const searchUi = document.getElementById('viewer-text-search-ui');
@@ -310,7 +412,9 @@ const Viewer = (() => {
     const editEl = document.getElementById('json-editor-content');
 
     if (edit) {
+      if (btnPreview) btnPreview.classList.add('hidden');
       if (btnEdit) btnEdit.classList.add('hidden');
+      if (btnDelete) btnDelete.classList.add('hidden');
       if (btnSave) btnSave.classList.remove('hidden');
       if (btnCancel) btnCancel.classList.remove('hidden');
       if (searchUi) searchUi.classList.add('hidden');
@@ -332,7 +436,11 @@ const Viewer = (() => {
         editEl.value = contentToEdit;
       }
     } else {
+      if ((_currentSubPath && _currentSubPath.toLowerCase().includes('graphsettings')) || _currentContent.includes('"Columns"')) {
+        if (btnPreview) btnPreview.classList.remove('hidden');
+      }
       if (btnEdit) btnEdit.classList.remove('hidden');
+      if (btnDelete) btnDelete.classList.remove('hidden');
       if (btnSave) btnSave.classList.add('hidden');
       if (btnCancel) btnCancel.classList.add('hidden');
       if (searchUi) searchUi.classList.remove('hidden');
@@ -383,6 +491,49 @@ const Viewer = (() => {
     } finally {
       btnSave.textContent = oldText;
       btnSave.disabled = false;
+    }
+  }
+
+  async function deleteFile() {
+    if (!_currentFileId) return;
+    
+    if (!confirm(`Sei sicuro di voler eliminare il file "${_currentFileId}"?\nQuesta operazione non può essere annullata.`)) {
+      return;
+    }
+
+    const btnDelete = document.getElementById('viewer-btn-delete');
+    const oldText = btnDelete.textContent;
+    btnDelete.textContent = '⏳ ...';
+    btnDelete.disabled = true;
+
+    try {
+      await API.removeFile(_currentFileId, _currentSubPath, _node, _user, _side);
+      
+      // Clear viewer
+      _currentFileId = null;
+      _currentSubPath = null;
+      _currentContent = '';
+      
+      const contentEl = document.getElementById('json-viewer-content');
+      const titleEl   = document.getElementById('viewer-file-title');
+      if (titleEl) titleEl.textContent = '— seleziona un file —';
+      if (contentEl) contentEl.innerHTML = '';
+      
+      document.getElementById('viewer-btn-edit')?.classList.add('hidden');
+      document.getElementById('viewer-btn-delete')?.classList.add('hidden');
+      document.getElementById('viewer-text-search-ui')?.classList.add('hidden');
+
+      // Refresh file list
+      loadNodes();
+      
+      alert('File eliminato con successo!');
+    } catch (err) {
+      alert('Errore durante l\'eliminazione: ' + err.message);
+    } finally {
+      if (btnDelete) {
+        btnDelete.textContent = oldText;
+        btnDelete.disabled = false;
+      }
     }
   }
 
@@ -466,10 +617,13 @@ const Viewer = (() => {
 
     // Attach edit/save button events
     const btnEdit = document.getElementById('viewer-btn-edit');
+    const btnDelete = document.getElementById('viewer-btn-delete');
     const btnSave = document.getElementById('viewer-btn-save');
     const btnCancel = document.getElementById('viewer-btn-cancel');
 
+    if (btnPreview) btnPreview.addEventListener('click', () => window.openWidgetPreviewModal());
     if (btnEdit) btnEdit.addEventListener('click', () => setEditMode(true));
+    if (btnDelete) btnDelete.addEventListener('click', () => deleteFile());
     if (btnSave) btnSave.addEventListener('click', () => saveFile());
     if (btnCancel) btnCancel.addEventListener('click', () => setEditMode(false));
   });

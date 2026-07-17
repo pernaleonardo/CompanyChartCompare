@@ -201,6 +201,8 @@
                   📄 <span id="viewer-file-title" style="font-weight:600;color:var(--text-accent)">— seleziona un file —</span>
                 </div>
                 <div style="display:flex;align-items:center;gap:12px;">
+                  <button id="viewer-btn-preview" class="btn btn-sm btn-info hidden" style="padding:4px 8px;" title="Anteprima Widget" onclick="openWidgetPreviewModal()">👁️ Anteprima Widget</button>
+                  <button id="viewer-btn-delete" class="btn btn-sm btn-danger hidden" style="padding:4px 8px;" title="Elimina file dal nodo">🗑 Elimina</button>
                   <button id="viewer-btn-edit" class="btn btn-sm btn-ghost hidden" style="padding:4px 8px;" title="Modifica file">✏️ Modifica</button>
                   <button id="viewer-btn-save" class="btn btn-sm btn-primary hidden" style="padding:4px 8px;" title="Salva e pubblica">💾 Pubblica</button>
                   <button id="viewer-btn-cancel" class="btn btn-sm btn-danger hidden" style="padding:4px 8px;" title="Annulla">❌ Annulla</button>
@@ -477,6 +479,32 @@
 
 <!-- ── Scripts ─────────────────────────────────────── -->
 <script src="js/textSearch.js?v=4"></script>
+
+  <div id="loading-overlay" class="loading-overlay hidden" aria-live="polite">
+    <div class="spinner"></div>
+    <div id="loading-message">Caricamento in corso...</div>
+  </div>
+
+  <!-- ── Widget Preview Modal ────────────────────────────── -->
+  <div id="widget-preview-modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="preview-modal-title">Anteprima Widget</h2>
+        <button class="btn btn-ghost btn-sm" onclick="closeWidgetPreviewModal()">✕</button>
+      </div>
+      <div class="modal-body" style="background:var(--bg-app); padding:20px; border-radius:6px; max-height:60vh; overflow-y:auto;">
+        <div id="widget-preview-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap:16px;">
+          <!-- Campi generati dinamicamente -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeWidgetPreviewModal()">Chiudi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── App Logic ───────────────────────────────────────── -->
+  <script src="js/utils.js"></script>
 <script src="js/toast.js?v=4"></script>
 <script src="js/api.js?v=4"></script>
 <script src="js/tree.js?v=4"></script>
