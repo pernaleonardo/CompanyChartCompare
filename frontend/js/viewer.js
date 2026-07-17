@@ -10,6 +10,10 @@ const Viewer = (() => {
   let _side       = 'A';  // environment side ('A' or 'B')
   let _expanded   = new Set(); // set of open folder paths (to preserve open/close state on filter)
   let _currentFilter = '';
+  
+  let _currentFileId = null;
+  let _currentSubPath = null;
+  let _currentContent = '';
 
   let _textSearch = null; // instance of TextSearch
 
@@ -260,14 +264,29 @@ const Viewer = (() => {
     const titleEl   = document.getElementById('viewer-file-title');
     if (!contentEl) return;
 
+    _currentFileId = configurationId;
+    _currentSubPath = subPath;
+
     if (titleEl) titleEl.textContent = displayName || configurationId;
     contentEl.innerHTML = '<div class="spinner" style="margin:16px auto;display:block"></div>';
+    
+    // Hide buttons during load
+    document.getElementById('viewer-btn-edit')?.classList.add('hidden');
+    document.getElementById('viewer-btn-save')?.classList.add('hidden');
+    document.getElementById('viewer-btn-cancel')?.classList.add('hidden');
+    document.getElementById('viewer-text-search-ui')?.classList.add('hidden');
+    document.getElementById('json-editor-content')?.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+
     try {
       const data = await API.downloadSingleFile(_node, subPath, configurationId, _user, _side);
+      _currentContent = data.content;
       contentEl.innerHTML = highlight(data.content);
       
       const searchUi = document.getElementById('viewer-text-search-ui');
       if (searchUi) searchUi.classList.remove('hidden');
+      
+      document.getElementById('viewer-btn-edit')?.classList.remove('hidden');
 
       // Re-init TextSearch
       _textSearch = new TextSearch(contentEl);
@@ -278,6 +297,92 @@ const Viewer = (() => {
 
     } catch (err) {
       contentEl.innerHTML = `<div class="alert alert-error">Errore apertura file: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  // ── Edit Mode & Save ───────────────────────────────────────
+  function setEditMode(edit) {
+    const btnEdit = document.getElementById('viewer-btn-edit');
+    const btnSave = document.getElementById('viewer-btn-save');
+    const btnCancel = document.getElementById('viewer-btn-cancel');
+    const searchUi = document.getElementById('viewer-text-search-ui');
+    const viewEl = document.getElementById('json-viewer-content');
+    const editEl = document.getElementById('json-editor-content');
+
+    if (edit) {
+      if (btnEdit) btnEdit.classList.add('hidden');
+      if (btnSave) btnSave.classList.remove('hidden');
+      if (btnCancel) btnCancel.classList.remove('hidden');
+      if (searchUi) searchUi.classList.add('hidden');
+      
+      if (viewEl) viewEl.classList.add('hidden');
+      if (editEl) {
+        editEl.classList.remove('hidden');
+        
+        // Try to format the JSON for easier editing
+        let contentToEdit = _currentContent;
+        if (_currentFileId && _currentFileId.endsWith('.json')) {
+          try {
+            const parsed = JSON.parse(contentToEdit);
+            contentToEdit = JSON.stringify(parsed, null, 2);
+          } catch (e) {
+            console.warn("Could not format JSON for editing:", e);
+          }
+        }
+        editEl.value = contentToEdit;
+      }
+    } else {
+      if (btnEdit) btnEdit.classList.remove('hidden');
+      if (btnSave) btnSave.classList.add('hidden');
+      if (btnCancel) btnCancel.classList.add('hidden');
+      if (searchUi) searchUi.classList.remove('hidden');
+      
+      if (viewEl) viewEl.classList.remove('hidden');
+      if (editEl) editEl.classList.add('hidden');
+    }
+  }
+
+  async function saveFile() {
+    const editEl = document.getElementById('json-editor-content');
+    if (!editEl || !_currentFileId) return;
+
+    let newContent = editEl.value;
+    
+    // Minify if it's a JSON file
+    if (_currentFileId.endsWith('.json')) {
+      try {
+        const parsed = JSON.parse(newContent);
+        newContent = JSON.stringify(parsed); // No spaces
+      } catch (e) {
+        alert("Errore: Il JSON non è valido e non può essere salvato.\n\n" + e.message);
+        return;
+      }
+    }
+
+    const btnSave = document.getElementById('viewer-btn-save');
+    const oldText = btnSave.textContent;
+    btnSave.textContent = '⏳ Salvataggio...';
+    btnSave.disabled = true;
+
+    try {
+      await API.uploadFile(newContent, _currentFileId, _currentSubPath, _node, _user, _side);
+      _currentContent = newContent;
+      const viewEl = document.getElementById('json-viewer-content');
+      if (viewEl) viewEl.innerHTML = highlight(_currentContent);
+      setEditMode(false);
+      
+      // Re-init text search
+      _textSearch = new TextSearch(viewEl);
+      const searchInput = document.getElementById('viewer-text-search-input');
+      const countEl = document.getElementById('viewer-text-search-count');
+      if (searchInput) searchInput.value = '';
+      if (countEl) countEl.textContent = '0/0';
+
+    } catch (err) {
+      alert('Errore durante il salvataggio: ' + err.message);
+    } finally {
+      btnSave.textContent = oldText;
+      btnSave.disabled = false;
     }
   }
 
@@ -358,6 +463,15 @@ const Viewer = (() => {
         updateSearchCount();
       });
     }
+
+    // Attach edit/save button events
+    const btnEdit = document.getElementById('viewer-btn-edit');
+    const btnSave = document.getElementById('viewer-btn-save');
+    const btnCancel = document.getElementById('viewer-btn-cancel');
+
+    if (btnEdit) btnEdit.addEventListener('click', () => setEditMode(true));
+    if (btnSave) btnSave.addEventListener('click', () => saveFile());
+    if (btnCancel) btnCancel.addEventListener('click', () => setEditMode(false));
   });
 
   // ── Helpers ───────────────────────────────────────────────
