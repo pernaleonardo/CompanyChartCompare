@@ -99,24 +99,28 @@ async function init() {
   }
 
   // Wire up sidebar controls
-  $('search-input').addEventListener('input', e => Tree.setSearch(e.target.value.trim()));
-  
+  const searchInput = $('search-input');
   const searchFileInput = $('search-file-input');
-  if (searchFileInput) {
-    searchFileInput.addEventListener('input', e => {
-      const q = e.target.value.trim();
-      currentFileSearchQuery = q;
+  const btnApply = $('btn-apply-filters');
+  const btnClear = $('btn-clear-filters');
+
+  const applyFilters = async () => {
+    // Node search
+    const nodeQ = searchInput ? searchInput.value.trim() : '';
+    Tree.setSearch(nodeQ);
+
+    // File search
+    if (searchFileInput) {
+      const fileQ = searchFileInput.value.trim();
+      currentFileSearchQuery = fileQ;
       
       if (fileSearchTimeout) clearTimeout(fileSearchTimeout);
       
-      if (!q) {
+      if (!fileQ) {
         Tree.setFileMatches(null);
-        return;
-      }
-      
-      fileSearchTimeout = setTimeout(async () => {
+      } else {
         try {
-          const data = await API.searchWidgets(q, activeSide);
+          const data = await API.searchWidgets(fileQ, activeSide);
           const map = {};
           if (data && data.results) {
             data.results.forEach(res => {
@@ -127,8 +131,24 @@ async function init() {
         } catch (err) {
           console.error('File search error:', err);
         }
-      }, 500);
-    });
+      }
+    }
+  };
+
+  const clearFilters = () => {
+    if (searchInput) searchInput.value = '';
+    if (searchFileInput) searchFileInput.value = '';
+    applyFilters();
+  };
+
+  if (btnApply) btnApply.addEventListener('click', applyFilters);
+  if (btnClear) btnClear.addEventListener('click', clearFilters);
+
+  if (searchInput) {
+    searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyFilters(); });
+  }
+  if (searchFileInput) {
+    searchFileInput.addEventListener('keydown', e => { if (e.key === 'Enter') applyFilters(); });
   }
 
   const hideZeroFilesCb = $('hide-zero-files-checkbox');

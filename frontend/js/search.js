@@ -4,11 +4,15 @@
 
 const WidgetSearch = (() => {
 
+  let _lastSearchResults = [];
+  let _lastSearchQuery = '';
+
   const $ = id => document.getElementById(id);
 
   function init() {
     const btnSearch = $('btn-global-search');
     const btnRun    = $('btn-run-global-search');
+    const btnReplace = $('btn-run-global-replace');
     const input     = $('global-search-input');
 
     if (btnSearch) {
@@ -16,6 +20,9 @@ const WidgetSearch = (() => {
     }
     if (btnRun) {
       btnRun.addEventListener('click', runSearch);
+    }
+    if (btnReplace) {
+      btnReplace.addEventListener('click', runReplace);
     }
     if (input) {
       input.addEventListener('keydown', e => {
@@ -42,22 +49,95 @@ const WidgetSearch = (() => {
   async function runSearch() {
     const query = $('global-search-input').value.trim();
     const container = $('global-search-results');
+    
+    const cbFile = $('cb-search-file');
+    const cbTag = $('cb-search-tag');
+    const cbContent = $('cb-search-content');
+    
+    const searchFile = cbFile ? cbFile.checked : true;
+    const searchTag = cbTag ? cbTag.checked : false;
+    const searchContent = cbContent ? cbContent.checked : false;
 
     if (!query) {
       Toast.error('Inserisci una chiave di ricerca');
+      return;
+    }
+    
+    if (!searchFile && !searchTag && !searchContent) {
+      Toast.error('Seleziona almeno un criterio di ricerca (Nome, Tag o Contenuto)');
       return;
     }
 
     container.innerHTML = `
       <div style="padding:40px;text-align:center">
         <div class="spinner" style="margin:auto"></div>
-        <p class="loading-text" style="margin-top:12px">Ricerca in tutta la gerarchia (questo processo potrebbe richiedere qualche secondo)...</p>
+        <p class="loading-text" style="margin-top:12px">Ricerca in corso (questo processo potrebbe richiedere qualche secondo)...</p>
       </div>
     `;
 
     try {
-      const data = await API.searchWidgets(query, activeSide);
-      renderResults(data.results, query);
+      if (searchFile && !searchTag && !searchContent) {
+        // Se cerca SOLO per nome file, usiamo la vecchia logica veloce globale
+        const data = await API.searchWidgets(query, activeSide);
+        _lastSearchResults = data.results || [];
+        _lastSearchQuery = query;
+        renderResults(data.results, query, false);
+      } else {
+        // Altrimenti usiamo la logica iterativa
+        const progressContainer = $('global-search-progress-container');
+        const progressText = $('global-search-progress-text');
+        const progressPercent = $('global-search-progress-percent');
+        const progressFill = $('global-search-progress-fill');
+
+        if (progressContainer) progressContainer.classList.remove('hidden');
+
+        // 1. Recupera gerarchia per ottenere tutti i nodi
+        const hierData = await API.getHierarchy(false, activeSide);
+        const nodeAliases = [];
+        function extractNodes(node) {
+          if (node.node && node.node.alias) nodeAliases.push(node.node.alias);
+          if (node.children) node.children.forEach(extractNodes);
+        }
+        extractNodes(hierData);
+
+        const total = nodeAliases.length;
+        let processed = 0;
+        const allResults = [];
+        const CONCURRENCY = 5;
+
+        // 2. Elabora in batch
+        for (let i = 0; i < total; i += CONCURRENCY) {
+          const chunk = nodeAliases.slice(i, i + CONCURRENCY);
+          const promises = chunk.map(async (alias) => {
+            try {
+              const res = await API.searchNodeContent(query, alias, { searchFile, searchTag, searchContent }, activeSide);
+              if (res && res.matches && res.matches.length > 0) {
+                allResults.push(res);
+              }
+            } catch (e) {
+              console.warn(`Errore ricerca contenuto nel nodo ${alias}:`, e);
+            } finally {
+              processed++;
+              if (progressContainer) {
+                const pct = Math.round((processed / total) * 100);
+                progressText.textContent = `Elaborazione nodi in corso... (${processed}/${total})`;
+                progressPercent.textContent = `${pct}%`;
+                progressFill.style.width = `${pct}%`;
+              }
+            }
+          });
+          await Promise.all(promises);
+        }
+
+        if (progressContainer) {
+          setTimeout(() => progressContainer.classList.add('hidden'), 1000);
+        }
+
+        _lastSearchResults = allResults;
+        _lastSearchQuery = query;
+
+        renderResults(allResults, query, true);
+      }
     } catch (err) {
       container.innerHTML = `
         <div class="alert alert-error" style="margin:16px">
@@ -67,14 +147,91 @@ const WidgetSearch = (() => {
     }
   }
 
-  function renderResults(results, query) {
+  async function runReplace() {
+    const replaceInput = $('global-replace-input');
+    if (!replaceInput) return;
+    const replaceWith = replaceInput.value;
+    
+    if (!_lastSearchQuery) {
+      Toast.error('Esegui prima una ricerca.');
+      return;
+    }
+
+    if (!_lastSearchResults || _lastSearchResults.length === 0) {
+      Toast.error('Nessun risultato di ricerca su cui operare.');
+      return;
+    }
+
+    let totalMatches = 0;
+    _lastSearchResults.forEach(res => {
+       totalMatches += res.matches.length;
+    });
+
+    if (!confirm(`Sei sicuro di voler sostituire "${_lastSearchQuery}" con "${replaceWith}" in ${totalMatches} file all'interno di ${_lastSearchResults.length} nodi e pubblicare le modifiche?`)) {
+      return;
+    }
+
+    const progressContainer = $('global-search-progress-container');
+    const progressText = $('global-search-progress-text');
+    const progressPercent = $('global-search-progress-percent');
+    const progressFill = $('global-search-progress-fill');
+
+    if (progressContainer) progressContainer.classList.remove('hidden');
+
+    let processed = 0;
+    let replacedCount = 0;
+    
+    // Elabora in sequenza per non sovraccaricare il server
+    for (const res of _lastSearchResults) {
+      const nodeAlias = res.node;
+      for (const m of res.matches) {
+        try {
+          // Scarica il file
+          const fileData = await API.downloadSingleFile(nodeAlias, m.subPath, m.filename, '', activeSide);
+          let content = fileData.content;
+          
+          // Sostituzione globale della chiave di ricerca con il nuovo valore
+          const regex = new RegExp(_lastSearchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+          const newContent = content.replace(regex, replaceWith);
+          
+          if (newContent !== content) {
+            // Ricarica (pubblica) il file modificato
+            await API.uploadFile(newContent, m.filename, m.subPath, nodeAlias, '', activeSide);
+            replacedCount++;
+          }
+        } catch (e) {
+          console.error(`Errore durante la sostituzione nel nodo ${nodeAlias} file ${m.filename}:`, e);
+        } finally {
+          processed++;
+          if (progressContainer) {
+            const pct = Math.round((processed / totalMatches) * 100);
+            progressText.textContent = `Sostituzione in corso... (${processed}/${totalMatches})`;
+            progressPercent.textContent = `${pct}%`;
+            progressFill.style.width = `${pct}%`;
+          }
+        }
+      }
+    }
+    
+    if (progressContainer) {
+      setTimeout(() => progressContainer.classList.add('hidden'), 1000);
+    }
+    
+    Toast.success(`Sostituzione massiva completata. Modificati ${replacedCount} file su ${totalMatches}.`);
+    
+    // Riavvia automaticamente la ricerca con la nuova chiave? Oppure con la vecchia?
+    // Meglio riavviare con la vecchia per far vedere che non c'è più nulla o con la nuova.
+    // La lasciamo così: l'utente può cercare di nuovo.
+  }
+
+  function renderResults(results, query, isContentSearch) {
     const container = $('global-search-results');
     if (!results || results.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">🔍</div>
           <h3>Nessun file trovato per "${escapeHtml(query)}"</h3>
-          <p>Prova ad inserire un nome parziale o controlla il componente attivo.</p>
+          <p>Prova ad inserire una stringa parziale o controlla il componente attivo.</p>
         </div>
       `;
       return;
@@ -103,14 +260,25 @@ const WidgetSearch = (() => {
 
       res.matches.forEach(m => {
         const icon = getFileIcon(m.filename);
+        let snippetHtml = '';
+        if (m.snippet) {
+          // Highlight the search term in snippet
+          const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+          const highlightedSnippet = escapeHtml(m.snippet).replace(regex, '<mark class="search-match current">$1</mark>');
+          snippetHtml = `<div style="font-family:monospace;font-size:11px;color:var(--text-muted);background:rgba(0,0,0,0.2);padding:6px;border-radius:4px;margin-top:4px;word-break:break-all;">${highlightedSnippet}</div>`;
+        }
+
         html += `
           <div class="fb-entry" style="padding:8px 12px;background:var(--bg-base);border-radius:6px;border:1px solid transparent;cursor:default">
-            <span class="fb-icon">${icon}</span>
-            <div style="display:flex;flex-direction:column;flex:1;min-width:0">
-              <span style="font-weight:500;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(m.filename)}</span>
-              <span style="font-size:11px;color:var(--text-muted)">${escapeHtml(m.subPath || 'Root')}</span>
+            <div style="display:flex;align-items:center;width:100%;">
+              <span class="fb-icon">${icon}</span>
+              <div style="display:flex;flex-direction:column;flex:1;min-width:0">
+                <span style="font-weight:500;color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(m.filename)}</span>
+                <span style="font-size:11px;color:var(--text-muted)">${escapeHtml(m.subPath || 'Root')}</span>
+              </div>
+              <button class="btn btn-sm btn-ghost" onclick="viewFileFromSearch('${escapeHtml(res.node)}','${escapeHtml(m.subPath)}','${escapeHtml(m.filename)}')">👁 Visualizza</button>
             </div>
-            <button class="btn btn-sm btn-ghost" onclick="viewFileFromSearch('${escapeHtml(res.node)}','${escapeHtml(m.subPath)}','${escapeHtml(m.filename)}')">👁 Visualizza</button>
+            ${snippetHtml}
           </div>
         `;
       });
@@ -156,22 +324,21 @@ window.viewFileFromSearch = function(nodeAlias, subPath, filename) {
   // Hide search panel
   $('widget-search-panel').classList.add('hidden');
   
-  // Open node panel and select the node (simulate tree selection first)
-  const success = Tree.selectNodeByAlias(nodeAlias);
+  // Open node panel and select the node (simulate tree selection first, without triggering onSelect that clears the viewer)
+  const success = Tree.selectNodeByAlias(nodeAlias, true);
   if (success) {
+    // Show the node panel explicitly since we suppressed the tree event
+    $('node-panel').classList.remove('hidden');
+
     // After selection, switch immediately to viewer tab and open the specific file
     setTimeout(async () => {
-      switchTab('viewer');
-      // Set state and fetch in Viewer
-      Viewer.show(nodeAlias, '', activeSide); // DEFAULT user
+      // Use the global viewConfig function to properly setup the UI (hide placeholder, show split view)
+      window.viewConfig('', nodeAlias, filename);
       
       // Wait for file browser to load, then select & open file
       setTimeout(() => {
-        const fileBrowser = document.getElementById('viewer-file-browser');
-        if (fileBrowser) {
-          Toast.info(`Struttura di ${nodeAlias} caricata. Cerca "${filename}" nel file browser.`);
-        }
-      }, 800);
+        Viewer.openFile(filename, subPath, filename);
+      }, 500);
     }, 150);
   } else {
     Toast.error('Impossibile caricare il nodo specificato');

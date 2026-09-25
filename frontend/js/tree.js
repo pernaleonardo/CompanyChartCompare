@@ -265,7 +265,7 @@ const Tree = (() => {
     return nodes;
   }
 
-  function selectNodeByAlias(alias) {
+  function selectNodeByAlias(alias, suppressEvent = false) {
     if (!_data) return false;
 
     const path = [];
@@ -302,7 +302,7 @@ const Tree = (() => {
           document.querySelectorAll('.tree-row.selected').forEach(el => el.classList.remove('selected'));
           row.classList.add('selected');
           row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          if (_onSelect) _onSelect(foundNode);
+          if (!suppressEvent && _onSelect) _onSelect(foundNode);
         }
       }, 60);
       return true;

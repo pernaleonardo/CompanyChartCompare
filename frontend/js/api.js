@@ -374,6 +374,20 @@ const API = (() => {
     return resp.json();
   }
 
-  return { session, getHierarchy, downloadConfig, previewConfig, compareConfigs, assignUser, removeUser, bulkDownload, downloadSingleFile, getConfigurationNodes, downloadFullConfig, getNodeHierarchy, searchWidgets, downloadFileDirectly, uploadFile, removeFile };
+  /**
+   * Search for configuration files content in a specific node.
+   * @param {string} query - search keyword
+   * @param {string} nodeAlias - node alias
+   * @param {Object} options - { searchFile, searchTag, searchContent }
+   * @param {string} side - 'A' or 'B'
+   */
+  async function searchNodeContent(query, nodeAlias, options = {}, side = 'A') {
+    const { searchFile = true, searchTag = false, searchContent = false } = options;
+    const url = `/api/config/search-node-content?query=${encodeURIComponent(query)}&nodeAlias=${encodeURIComponent(nodeAlias)}&searchFile=${searchFile}&searchTag=${searchTag}&searchContent=${searchContent}`;
+    const resp = await request(url, {}, side);
+    return resp.json();
+  }
+
+  return { session, getHierarchy, downloadConfig, previewConfig, compareConfigs, assignUser, removeUser, bulkDownload, downloadSingleFile, getConfigurationNodes, downloadFullConfig, getNodeHierarchy, searchWidgets, searchNodeContent, downloadFileDirectly, uploadFile, removeFile };
 })();
 

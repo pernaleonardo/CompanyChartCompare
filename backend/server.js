@@ -5,6 +5,7 @@ const cors     = require('cors');
 const axios    = require('axios');
 const https    = require('https');
 const { spawn } = require('child_process');
+const fs       = require('fs');
 const path     = require('path');
 const AdmZip   = require('adm-zip');
 require('dotenv').config();
@@ -44,11 +45,22 @@ app.post('/api/login', (req, res) => {
         componentId       = 'brk',
         componentPassword = process.env.DEFAULT_COMPONENT_PASSWORD || 'acm',
         serviceUsername   = process.env.DEFAULT_SERVICE_USERNAME   || 'SSC.DEFAULT@SERVICE',
-        acmDllPath        = process.env.ACM_DLL_PATH               || '',
+        acmDllPath: inputDllPath = '',
     } = req.body;
 
+    const envDllPath = (process.env.ACM_DLL_PATH || '').trim();
+
+    let acmDllPath = (inputDllPath || '').trim();
+    // Se l'input è vuoto oppure il file specificato non esiste su disco, ma envDllPath esiste -> usa envDllPath
+    if (envDllPath && (!acmDllPath || !fs.existsSync(acmDllPath))) {
+        acmDllPath = envDllPath;
+    }
+    if (!acmDllPath && envDllPath) {
+        acmDllPath = envDllPath;
+    }
+
     if (!appServer)  return res.status(400).json({ error: 'appServer is required' });
-    if (!acmDllPath) return res.status(400).json({ error: 'acmDllPath is required' });
+    if (!acmDllPath) return res.status(400).json({ error: 'acmDllPath is required (imposta ACM_DLL_PATH nel file .env o nel form)' });
 
     const scriptPath = path.join(__dirname, 'scripts', 'get-token.ps1');
 
@@ -595,6 +607,136 @@ function setCachedConfigNodes(key, data) {
     configNodesCache.set(key, { timestamp: Date.now(), data });
 }
 
+// ─── Simple In-Memory Cache for Node Contents ─────────────────────────────────
+const nodeContentsCache = new Map();
+
+function getCachedNodeContents(key) {
+    const cached = nodeContentsCache.get(key);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+        return cached.data;
+    }
+    return null;
+}
+
+function setCachedNodeContents(key, data) {
+    nodeContentsCache.set(key, { timestamp: Date.now(), data });
+}
+
+// ─── GET /api/config/search-node-content ──────────────────────────────────────
+// Cerca nel contenuto testuale dei file ZIP di un singolo nodo
+// Query: query, nodeAlias
+app.get('/api/config/search-node-content', async (req, res) => {
+    const appServer = req.headers['x-app-server'];
+    const { query, nodeAlias, searchFile, searchTag, searchContent } = req.query;
+    const compId = req.headers['x-component-id'] || 'demand';
+
+    if (!appServer || !query || !nodeAlias) {
+        return res.status(400).json({ error: 'Missing query, nodeAlias or x-app-server header' });
+    }
+
+    const isSearchFile = searchFile === 'true';
+    const isSearchTag = searchTag === 'true';
+    const isSearchContent = searchContent === 'true';
+
+    const searchTerm = query.toLowerCase().trim();
+    const escapedQuery = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // Tag name: "<query" or "</query" or ""query":"
+    const tagRegex = new RegExp(`(?:<\\/?${escapedQuery}[\\s>]|"${escapedQuery}"\\s*:)`, 'i');
+    
+    // Content: ">...query...<" or "="..."query""" or json values
+    const contentRegex = new RegExp(`(?:>[^<]*${escapedQuery}[^<]*<|="[^"]*${escapedQuery}[^"]*"|:\\s*(?:"[^"]*${escapedQuery}[^"]*"|[^",\\s][^",]*${escapedQuery}[^",]*))`, 'i');
+
+    const cacheKey = `${appServer}#${compId}#${nodeAlias}_content`;
+    let filesData = getCachedNodeContents(cacheKey);
+
+    try {
+        if (!filesData) {
+            const url = `https://${appServer}/CompanyChart/api/v1/ConfigurationManagement/downloadConfigurationNode`
+                + `?componentId=${encodeURIComponent(compId)}`
+                + `&userName=`
+                + `&userContext=${encodeURIComponent(nodeAlias)}`;
+
+            const dlResp = await axios.get(url, {
+                headers: { ...ccHeaders(req), accept: 'application/octet-stream' },
+                responseType: 'arraybuffer',
+                httpsAgent,
+            });
+
+            const zip = new AdmZip(Buffer.from(dlResp.data));
+            filesData = {};
+            zip.getEntries().forEach(entry => {
+                if (!entry.isDirectory) {
+                    filesData[entry.entryName] = entry.getData().toString('utf8');
+                }
+            });
+            setCachedNodeContents(cacheKey, filesData);
+        }
+
+        const matches = [];
+        for (const [fullPath, content] of Object.entries(filesData)) {
+            let matched = false;
+            let matchIndex = -1;
+
+            if (isSearchFile && fullPath.toLowerCase().includes(searchTerm)) {
+                matched = true;
+            }
+            
+            if (isSearchTag && !matched) {
+                const tagM = content.match(tagRegex);
+                if (tagM) { matched = true; matchIndex = tagM.index; }
+            }
+
+            if (isSearchContent && !matched) {
+                const contentM = content.match(contentRegex);
+                if (contentM) { matched = true; matchIndex = contentM.index; }
+            }
+            
+            if (matched && matchIndex === -1) {
+                const idx = content.toLowerCase().indexOf(searchTerm);
+                if (idx !== -1) {
+                    matchIndex = idx;
+                } else {
+                    matchIndex = 0;
+                }
+            }
+
+            if (matched) {
+                let snippet = '';
+                if (matchIndex >= 0 && content.length > 0) {
+                    const idx = Math.max(0, matchIndex);
+                    const start = Math.max(0, idx - 40);
+                    const end = Math.min(content.length, idx + searchTerm.length + 40);
+                    snippet = content.substring(start, end);
+                    if (start > 0) snippet = '...' + snippet;
+                    if (end < content.length) snippet = snippet + '...';
+                }
+
+                // Handle both forward slashes (from AdmZip) and backslashes
+                const normalizedPath = fullPath.replace(/\\/g, '/');
+                const lastSlashIdx = normalizedPath.lastIndexOf('/');
+                
+                matches.push({
+                    fullPath,
+                    filename: lastSlashIdx >= 0 ? fullPath.substring(lastSlashIdx + 1) : fullPath,
+                    subPath: lastSlashIdx >= 0 ? fullPath.substring(0, lastSlashIdx).replace(/\//g, '\\') : '',
+                    snippet
+                });
+            }
+        }
+
+        res.json({ node: nodeAlias, matches });
+    } catch (err) {
+        // Se non esiste la configurazione per il nodo, restituisci array vuoto
+        if (err.response?.status === 404 || err.response?.status === 500) {
+            return res.json({ node: nodeAlias, matches: [] });
+        }
+        console.error(`[search-node-content] error per ${nodeAlias}:`, err.message);
+        res.status(err.response?.status || 500).json({ error: err.message });
+    }
+});
+
+
 // ─── GET /api/config/search-widgets ──────────────────────────────────────────
 // Cerca file di configurazione (es. widget) che contengono la query nel nome
 // in tutti i nodi della gerarchia.
@@ -666,10 +808,12 @@ app.get('/api/config/search-widgets', async (req, res) => {
                         : (file.name || file.Name || file.configurationid || file.configurationId || file.ConfigurationId || '');
                     
                     if (fullPath.toLowerCase().includes(searchTerm)) {
+                        const normalizedPath = fullPath.replace(/\\/g, '/');
+                        const lastSlashIdx = normalizedPath.lastIndexOf('/');
                         matches.push({
                             fullPath,
-                            filename: fullPath.split('\\').pop(),
-                            subPath: fullPath.includes('\\') ? fullPath.substring(0, fullPath.lastIndexOf('\\')) : ''
+                            filename: lastSlashIdx >= 0 ? fullPath.substring(lastSlashIdx + 1) : fullPath,
+                            subPath: lastSlashIdx >= 0 ? fullPath.substring(0, lastSlashIdx).replace(/\//g, '\\') : ''
                         });
                     }
                 });

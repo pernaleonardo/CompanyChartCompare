@@ -616,6 +616,7 @@ const Viewer = (() => {
     }
 
     // Attach edit/save button events
+    const btnPreview = document.getElementById('viewer-btn-preview');
     const btnEdit = document.getElementById('viewer-btn-edit');
     const btnDelete = document.getElementById('viewer-btn-delete');
     const btnSave = document.getElementById('viewer-btn-save');
@@ -641,5 +642,5 @@ const Viewer = (() => {
     return `${(bytes/1048576).toFixed(1)} MB`;
   }
 
-  return { show, highlight };
+  return { show, highlight, openFile };
 })();

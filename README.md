@@ -70,6 +70,26 @@ DEFAULT_COMPONENT_PASSWORD=acm
 DEFAULT_SERVICE_USERNAME=SSC.DEFAULT@SERVICE
 ```
 
+## Deploy su IIS (Automatizzato)
+
+Per installare automaticamente l'applicazione su un server IIS (Internet Information Services) tramite PowerShell:
+
+1. Apri **PowerShell come Amministratore**.
+2. Spostati nella cartella del progetto:
+   ```powershell
+   cd C:\percorso\CompanyChartCompare
+   ```
+3. Esegui lo script automatizzato:
+   ```powershell
+   .\setup-iis.ps1 -SiteName "CompanyChartCompare" -SitePort 8080 -NodePort 3000
+   ```
+
+Lo script provvederà in autonomia a:
+- Controllare ed installare **IIS**, **Node.js LTS**, **URL Rewrite 2.1**, **ARR 3.0** e **NSSM**.
+- Abilitare il Proxy ARR e sbloccare le DLL .NET necessarie.
+- Registrare il backend Node.js come Servizio Windows autostart (`CompanyChartBackend`).
+- Creare ed associare il Sito IIS con la regola di Reverse Proxy in `web.config`.
+
 ## Funzionalità
 
 - 🔐 **Login** con parametri ACM configurabili
@@ -78,3 +98,4 @@ DEFAULT_SERVICE_USERNAME=SSC.DEFAULT@SERVICE
 - 📄 **Viewer JSON** con syntax highlighting e navigazione tra file ZIP
 - 📥 **Download** configurazioni come ZIP
 - ↔ **Confronto** side-by-side tra due configurazioni con diff colorato
+
