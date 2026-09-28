@@ -341,20 +341,18 @@
         </div>
 
         <div style="padding:20px;background:var(--surface-raised);border-radius:12px;margin:16px;border:1px solid var(--border)">
-          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-            <input id="global-search-input" type="text" placeholder="Es. Agent, BricksDs, demand..." style="flex:1;padding:12px 16px;font-size:15px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;color:#fff;outline:none;min-width:250px;" />
+          <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+            <input id="global-search-filename-input" type="text" placeholder="Filtro per Nome File (es. SSC_DeliveryPlanApproval)..." style="flex:1;padding:12px 16px;font-size:15px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;color:#fff;outline:none;min-width:250px;" />
+            <span style="font-weight:bold;color:var(--text-secondary);">AND</span>
+            <input id="global-search-tag-input" type="text" placeholder="Filtro per Tag o Valore JSON (es. GraphicSettings)..." style="flex:1;padding:12px 16px;font-size:15px;background:var(--bg-base);border:1px solid var(--border);border-radius:8px;color:#fff;outline:none;min-width:250px;" />
+            
             <button id="btn-run-global-search" class="btn btn-primary" style="padding:12px 24px">Cerca</button>
           </div>
           <div style="margin-top:12px;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
-            <span style="font-size:14px;color:var(--text-secondary);">Cerca in:</span>
+            <span style="font-size:14px;color:var(--text-secondary);">Il secondo campo cerca in:</span>
             
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;color:var(--text-primary);">
-              <input type="checkbox" id="cb-search-file" checked style="width:16px;height:16px;accent-color:var(--accent-bright);" />
-              Nome File
-            </label>
-            
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:14px;color:var(--text-primary);">
-              <input type="checkbox" id="cb-search-tag" style="width:16px;height:16px;accent-color:var(--accent-bright);" />
+              <input type="checkbox" id="cb-search-tag" checked style="width:16px;height:16px;accent-color:var(--accent-bright);" />
               Nome Tag / Chiave JSON
             </label>
             
@@ -379,6 +377,14 @@
               <div id="global-search-progress-fill" style="height:100%;width:0%;background:linear-gradient(90deg, var(--accent-base), var(--accent-bright));transition:width 0.2s ease;"></div>
             </div>
           </div>
+        </div>
+
+        <div id="base-file-banner" class="hidden" style="margin: 0 16px 16px 16px; padding: 12px 16px; background: rgba(61, 127, 255, 0.1); border: 1px solid var(--accent); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <span style="font-size: 13px; color: var(--accent-bright); font-weight: bold;">File Base Selezionato:</span>
+            <span id="base-file-info" style="font-size: 13px; color: #fff; margin-left: 8px;">—</span>
+          </div>
+          <button id="btn-clear-base-file" class="btn btn-sm btn-ghost" style="color: var(--danger); border: 1px solid rgba(239,68,68,0.3);">✕ Deseleziona</button>
         </div>
 
         <div id="global-search-results" style="padding:16px;overflow-y:auto;flex:1">
@@ -475,6 +481,68 @@
     🚫 Escludi tag "<span id="context-key-name" style="font-weight: 700; color: var(--accent-bright);"></span>"
   </button>
 </div>
+
+<!-- ── Modal: Single File Compare ────────────────────────── -->
+<div id="modal-single-file-compare" class="modal-backdrop hidden" style="z-index: 250;">
+  <div class="modal" style="width: 90vw; height: 90vh; max-width: 1200px; display: flex; flex-direction: column;">
+    <div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <h3 style="margin: 0; flexShrink: 0;">↔ Confronto File Singolo</h3>
+      
+      <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+        <!-- Isolate Tag UI -->
+        <div style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.05); padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);">
+          <span style="font-size: 11px; color: var(--text-secondary);">🔍 Isola Tag JSON:</span>
+          <input type="text" id="single-compare-isolate-tag" placeholder="es. GraphicSettings" style="width: 140px; padding: 2px 6px; font-size: 11px; background: var(--bg-base); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px;">
+        </div>
+
+        <!-- Text Search UI -->
+        <div id="single-compare-search-ui" style="display: flex; align-items: center; gap: 6px;">
+          <input type="text" id="single-compare-search-input" class="input" placeholder="Cerca testo..." style="width: 140px; padding: 4px 8px; font-size: 12px; background: var(--bg-base); border: 1px solid var(--border); color: var(--text-primary); border-radius: 4px;">
+          <span id="single-compare-search-count" style="font-size: 11px; color: var(--text-muted); min-width: 30px; text-align: center;">0/0</span>
+          <button id="btn-single-compare-search-prev" class="btn btn-sm btn-ghost" style="padding: 2px 6px;">↑</button>
+          <button id="btn-single-compare-search-next" class="btn btn-sm btn-ghost" style="padding: 2px 6px;">↓</button>
+        </div>
+      </div>
+
+      <span class="modal-close" onclick="closeSingleFileCompare()" aria-label="Chiudi" style="margin-left: 0;">&times;</span>
+    </div>
+    <div class="modal-body" style="flex: 1; display: flex; flex-direction: column; gap: 16px; overflow: hidden; padding: 16px; background: var(--bg-app);">
+      
+      <!-- Top: Visual Diff -->
+      <div style="flex: 3; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-surface); overflow: hidden;">
+        <div style="padding: 10px; border-bottom: 1px solid var(--border); background: var(--surface-raised); display: flex; justify-content: space-between;">
+          <div><strong style="color: var(--text-accent);">Lato A (Base)</strong><div id="single-compare-info-A" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;"></div></div>
+          <div style="text-align: right;"><strong style="color: var(--accent-bright);">Lato B (Destinazione)</strong><div id="single-compare-info-B" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;"></div></div>
+        </div>
+        <div class="diff-file" style="margin: 0; flex: 1; overflow: auto; border: none; display: flex; flex-direction: column;">
+          <div class="diff-content open" style="flex: 1; min-height: 0;">
+            <div class="diff-side" id="single-compare-diff-A"></div>
+            <div class="diff-side" id="single-compare-diff-B"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom: Target File Editable -->
+      <div style="flex: 2; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-surface); overflow: hidden;">
+        <div style="padding: 10px; border-bottom: 1px solid var(--border); background: var(--surface-raised); display: flex; justify-content: space-between; align-items: center;">
+          <strong style="color: var(--accent-bright);">Modifica Lato B (Editor)</strong>
+          <span style="font-size: 11px; color: var(--text-muted);">Usa il confronto in alto per decidere quali righe copiare qui.</span>
+        </div>
+        <textarea id="single-compare-text-B" style="flex: 1; width: 100%; border: none; padding: 12px; font-family: monospace; font-size: 12px; background: #1e1e1e; color: #d4d4d4; resize: none; outline: none;"></textarea>
+      </div>
+
+    </div>
+    <div class="modal-footer" style="justify-content: space-between;">
+      <span style="font-size: 12px; color: var(--text-muted);">Usa il confronto in alto o l'isolamento dei tag per individuare le differenze.</span>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn" style="background: rgba(255,255,255,0.1); border: 1px solid var(--border);" id="btn-single-compare-copy-base" title="Sovrascrive l'editor con il contenuto del File Base (Lato A)">← Copia da Lato A</button>
+        <button class="btn btn-ghost" onclick="closeSingleFileCompare()">Annulla</button>
+        <button class="btn btn-primary" id="btn-save-single-file-compare">💾 Salva e Pubblica Lato B</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- ── Modal: Credits ──────────────────────────────────────── -->
 <div id="modal-credits" class="modal-backdrop hidden" role="dialog" aria-modal="true">

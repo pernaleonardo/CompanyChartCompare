@@ -18,7 +18,8 @@ const PORT = process.env.PORT || 3000;
 const httpsAgent = new https.Agent({ rejectUnauthorized: false });
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
@@ -627,25 +628,33 @@ function setCachedNodeContents(key, data) {
 // Query: query, nodeAlias
 app.get('/api/config/search-node-content', async (req, res) => {
     const appServer = req.headers['x-app-server'];
-    const { query, nodeAlias, searchFile, searchTag, searchContent } = req.query;
+    const { query, fileNameQuery, tagQuery, searchFile, searchTag, searchContent, nodeAlias } = req.query;
     const compId = req.headers['x-component-id'] || 'demand';
 
-    if (!appServer || !query || !nodeAlias) {
-        return res.status(400).json({ error: 'Missing query, nodeAlias or x-app-server header' });
+    if (!appServer || !nodeAlias) {
+        return res.status(400).json({ error: 'Missing nodeAlias or x-app-server header' });
     }
 
-    const isSearchFile = searchFile === 'true';
-    const isSearchTag = searchTag === 'true';
+    // Support old query format and new split format
+    let fileTerm = (fileNameQuery || (searchFile === 'true' ? query : '') || '').toLowerCase().trim();
+    let tagTerm = (tagQuery || ((searchTag === 'true' || searchContent === 'true') ? query : '') || '').toLowerCase().trim();
+    
+    // If we only have old `query`, distribute it based on boolean flags
+    if (query && !fileNameQuery && !tagQuery) {
+       if (searchFile === 'true') fileTerm = query.toLowerCase().trim();
+       if (searchTag === 'true' || searchContent === 'true') tagTerm = query.toLowerCase().trim();
+    }
+
+    const isSearchTag = searchTag === 'true' || (tagTerm && searchTag !== 'false' && searchContent !== 'true'); // default to tag if provided
     const isSearchContent = searchContent === 'true';
 
-    const searchTerm = query.toLowerCase().trim();
-    const escapedQuery = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const escapedTagTerm = tagTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     
     // Tag name: "<query" or "</query" or ""query":"
-    const tagRegex = new RegExp(`(?:<\\/?${escapedQuery}[\\s>]|"${escapedQuery}"\\s*:)`, 'i');
+    const tagRegex = tagTerm ? new RegExp(`(?:<\\/?${escapedTagTerm}[\\s>]|"${escapedTagTerm}"\\s*:)`, 'i') : null;
     
     // Content: ">...query...<" or "="..."query""" or json values
-    const contentRegex = new RegExp(`(?:>[^<]*${escapedQuery}[^<]*<|="[^"]*${escapedQuery}[^"]*"|:\\s*(?:"[^"]*${escapedQuery}[^"]*"|[^",\\s][^",]*${escapedQuery}[^",]*))`, 'i');
+    const contentRegex = tagTerm ? new RegExp(`(?:>[^<]*${escapedTagTerm}[^<]*<|="[^"]*${escapedTagTerm}[^"]*"|:\\s*(?:"[^"]*${escapedTagTerm}[^"]*"|[^",\\s][^",]*${escapedTagTerm}[^",]*))`, 'i') : null;
 
     const cacheKey = `${appServer}#${compId}#${nodeAlias}_content`;
     let filesData = getCachedNodeContents(cacheKey);
@@ -675,38 +684,42 @@ app.get('/api/config/search-node-content', async (req, res) => {
 
         const matches = [];
         for (const [fullPath, content] of Object.entries(filesData)) {
-            let matched = false;
+            let matchFile = !fileTerm; // If no fileTerm, it matches automatically
+            let matchTagContent = !tagTerm; // If no tagTerm, it matches automatically
+            
             let matchIndex = -1;
 
-            if (isSearchFile && fullPath.toLowerCase().includes(searchTerm)) {
-                matched = true;
+            if (fileTerm && fullPath.toLowerCase().includes(fileTerm)) {
+                matchFile = true;
             }
             
-            if (isSearchTag && !matched) {
-                const tagM = content.match(tagRegex);
-                if (tagM) { matched = true; matchIndex = tagM.index; }
-            }
+            if (tagTerm && matchFile) {
+                if (isSearchTag) {
+                    const tagM = content.match(tagRegex);
+                    if (tagM) { matchTagContent = true; matchIndex = tagM.index; }
+                }
 
-            if (isSearchContent && !matched) {
-                const contentM = content.match(contentRegex);
-                if (contentM) { matched = true; matchIndex = contentM.index; }
-            }
-            
-            if (matched && matchIndex === -1) {
-                const idx = content.toLowerCase().indexOf(searchTerm);
-                if (idx !== -1) {
-                    matchIndex = idx;
-                } else {
-                    matchIndex = 0;
+                if (isSearchContent && !matchTagContent) {
+                    const contentM = content.match(contentRegex);
+                    if (contentM) { matchTagContent = true; matchIndex = contentM.index; }
+                }
+                
+                if (matchTagContent && matchIndex === -1) {
+                    const idx = content.toLowerCase().indexOf(tagTerm);
+                    if (idx !== -1) {
+                        matchIndex = idx;
+                    } else {
+                        matchIndex = 0;
+                    }
                 }
             }
 
-            if (matched) {
+            if (matchFile && matchTagContent) {
                 let snippet = '';
                 if (matchIndex >= 0 && content.length > 0) {
                     const idx = Math.max(0, matchIndex);
                     const start = Math.max(0, idx - 40);
-                    const end = Math.min(content.length, idx + searchTerm.length + 40);
+                    const end = Math.min(content.length, idx + tagTerm.length + 40);
                     snippet = content.substring(start, end);
                     if (start > 0) snippet = '...' + snippet;
                     if (end < content.length) snippet = snippet + '...';
